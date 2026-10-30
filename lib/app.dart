@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'config/constants/app_constants.dart';
 import 'config/routes/app_router.dart';
 import 'config/theme/app_theme.dart';
+import 'config/theme/theme_provider.dart';
 import 'core/di/dependency_injection.dart';
 
 class CmlSiBuyingApp extends StatefulWidget {
@@ -19,7 +20,9 @@ class _CmlSiBuyingAppState extends State<CmlSiBuyingApp> {
   @override
   void initState() {
     super.initState();
-    widget.dependencies.auth.restoreSession();
+    if (!AppConstants.bypassLoginForModulePreview) {
+      widget.dependencies.auth.restoreSession();
+    }
   }
 
   @override
@@ -33,13 +36,22 @@ class _CmlSiBuyingAppState extends State<CmlSiBuyingApp> {
     providers: [
       ChangeNotifierProvider.value(value: widget.dependencies.auth),
       ChangeNotifierProvider.value(value: widget.dependencies.dashboard),
+      ChangeNotifierProvider.value(value: widget.dependencies.pointOfPurchase),
+      ChangeNotifierProvider.value(value: widget.dependencies.supplier),
       ChangeNotifierProvider.value(value: widget.dependencies.profile),
     ],
-    child: MaterialApp.router(
-      title: AppConstants.appName,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      routerConfig: _router,
+    child: ChangeNotifierProvider(
+      create: (_) => ThemeProvider(widget.dependencies.preferences),
+      child: Consumer<ThemeProvider>(
+        builder: (context, theme, _) => MaterialApp.router(
+          debugShowCheckedModeBanner: false,
+          title: AppConstants.appName,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: theme.themeMode,
+          routerConfig: _router,
+        ),
+      ),
     ),
   );
 }

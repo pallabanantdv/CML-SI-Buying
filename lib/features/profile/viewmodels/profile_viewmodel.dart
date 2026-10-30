@@ -5,36 +5,56 @@ import '../models/profile_model.dart';
 import '../repositories/profile_repository.dart';
 
 class ProfileViewModel extends ChangeNotifier {
-  ProfileViewModel(this._repository);
-  final ProfileRepository _repository;
+  ProfileViewModel(this.repository);
+
+  final ProfileRepository repository;
+
   ProfileModel? _profile;
-  String? _errorMessage;
   bool _isLoading = false;
-  bool _disposed = false;
+  String? _errorMessage;
+  String? _requestedEmail;
+  int _requestId = 0;
+
   ProfileModel? get profile => _profile;
-  String? get errorMessage => _errorMessage;
   bool get isLoading => _isLoading;
-  Future<void> load() async {
+  String? get errorMessage => _errorMessage;
+
+  Future<void> loadProfile(String email) async {
+    final normalizedEmail = email.trim();
+    if (normalizedEmail.isEmpty ||
+        (_requestedEmail == normalizedEmail &&
+            (_isLoading || _profile != null))) {
+      return;
+    }
+    final requestId = ++_requestId;
+    _requestedEmail = normalizedEmail;
     _isLoading = true;
     _errorMessage = null;
-    _notify();
+    _profile = null;
+    notifyListeners();
     try {
-      _profile = await _repository.load();
+      final profile = await repository.getProfile(normalizedEmail);
+      if (requestId == _requestId) _profile = profile;
     } on AppException catch (error) {
-      _errorMessage = error.message;
+      if (requestId == _requestId) _errorMessage = error.message;
+    } catch (_) {
+      if (requestId == _requestId) {
+        _errorMessage = 'Unable to load this user profile.';
+      }
     } finally {
-      _isLoading = false;
-      _notify();
+      if (requestId == _requestId) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
-  void _notify() {
-    if (!_disposed) notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _disposed = true;
-    super.dispose();
+  void clearProfile() {
+    ++_requestId;
+    _requestedEmail = null;
+    _profile = null;
+    _errorMessage = null;
+    _isLoading = false;
+    notifyListeners();
   }
 }

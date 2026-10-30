@@ -1,43 +1,33 @@
 # CML SI Buying
 
-Flutter application foundation for an ERPNext/Frappe buying workflow. The project uses feature-first MVVM: views depend on Provider ViewModels, ViewModels depend on repositories, and repositories use the shared Frappe API clients.
+Flutter application foundation using feature-first MVVM, Provider + ChangeNotifier, Dio, GoRouter, and Material 3.
 
-## Setup and run
+## Run
 
-1. Install the Flutter stable SDK and run `flutter pub get`.
-2. Set `FRAPPE_BASE_URL` in `.env.example` to your ERPNext site URL. This example file is bundled so the app can load it with `flutter_dotenv`. The URL is configuration, not a secret; never add API keys or passwords to the Flutter bundle.
-3. Run `flutter run` for the connected device, or specify a target such as `flutter run -d chrome`.
+1. Set `FRAPPE_BASE_URL` in the bundled `.env.example` file to your ERPNext site.
+2. Run `flutter pub get`.
+3. Run `flutter run` (or `flutter run -d chrome`).
 
-The app starts on the splash screen, validates any persisted session, and redirects to sign-in when no valid session exists. Sign-in uses Frappe's cookie session. Cookie files are persisted in the application support directory on native platforms. The example URL is a placeholder, so requests need a configured reachable Frappe site.
+Unauthenticated users start at Splash and are redirected to Login. The existing Frappe cookie-session login remains in place. After login, GoRouter opens Dashboard inside the four-branch navigation shell.
 
-## Packages
+For module UI preview, `AppConstants.bypassLoginForModulePreview` in `lib/config/constants/app_constants.dart` is currently `true`. Set this single flag to `false` to restore Splash, session validation, and Login gating.
 
-- `provider` for ChangeNotifier ViewModels
-- `dio`, `cookie_jar`, and `dio_cookie_manager` for HTTP and persisted Frappe sessions
-- `go_router` for protected navigation
-- `flutter_secure_storage` for session state
-- `shared_preferences` for simple local preferences
-- `flutter_dotenv` for environment configuration
+## Main modules
 
-## API examples
+The mobile navigation contains Dashboard, Purchase, Supplier, and Profile. `StatefulShellRoute.indexedStack` keeps independent tab stacks; GoRouter owns selected-tab state. Dashboard, Point of Purchase, and Add Supplier show neutral placeholders until their requirements are defined. They have repository and ChangeNotifier ViewModel foundations but make no module API calls. Profile preserves local theme selection and sign-out without fetching ERPNext profile data.
 
-```dart
-final customers = await resourceApi.getDocList(
-  'Customer',
-  fields: ['name', 'customer_name'],
-  limitPageLength: 10,
-);
+The debug-only component showcase remains at `/design-system` and is not part of the four main tabs.
 
-final loggedInUser = await methodApi.callGetMethod(
-  'frappe.auth.get_logged_user',
-);
-```
+## Structure
 
-The Resource API serializes filters and fields, encodes DocType and document path segments, and normalizes the Frappe `data` envelope. The Method API keeps dotted Python method paths intact and unwraps `message` by default; pass `preserveResponse: true` for the complete envelope. Dashboard customer access is optional: if the account lacks Customer permission, the logged-in user still appears and the customer card reports that the data is unavailable.
+- `lib/config/routes/`: centralized route names and paths, protected route redirects, and the four shell branches.
+- `lib/config/theme/`: centralized light/dark colors, semantic ThemeExtension, typography, spacing, dimensions, Material themes, and persisted theme selection.
+- `lib/core/`: shared networking, storage, errors, utilities, and dependency composition.
+- `lib/shared/navigation/`: `MainShell`, GoRouter-backed bottom navigation, and item model.
+- `lib/shared/widgets/`: reusable design-system components.
+- `lib/features/`: auth, dashboard, point of purchase, supplier, and profile modules.
 
-## Adding a feature
-
-Create `models/`, `repositories/`, `viewmodels/`, `views/`, and `widgets/` under `lib/features/<feature>/`. Keep UI behavior in the ViewModel, API mapping in its repository, and reuse `FrappeResourceApi` or `FrappeMethodApi` through constructor injection. Register the ViewModel and protected route in the app composition and router.
+Add feature models, widgets, and API mappings once that module's requirements are known. Keep UI interactions in its ViewModel and module data access in its repository.
 
 ## Validation
 
@@ -46,5 +36,3 @@ dart format lib test
 flutter analyze
 flutter test
 ```
-
-The API tests use a mocked Dio adapter and do not require an ERPNext server.

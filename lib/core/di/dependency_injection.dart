@@ -15,18 +15,26 @@ import '../../features/auth/repositories/auth_repository.dart';
 import '../../features/auth/viewmodels/auth_viewmodel.dart';
 import '../../features/dashboard/repositories/dashboard_repository.dart';
 import '../../features/dashboard/viewmodels/dashboard_viewmodel.dart';
+import '../../features/point_of_purchase/repositories/point_of_purchase_repository.dart';
+import '../../features/point_of_purchase/viewmodels/point_of_purchase_viewmodel.dart';
 import '../../features/profile/repositories/profile_repository.dart';
 import '../../features/profile/viewmodels/profile_viewmodel.dart';
+import '../../features/supplier/repositories/supplier_repository.dart';
+import '../../features/supplier/viewmodels/supplier_viewmodel.dart';
 
 class AppDependencies {
   const AppDependencies({
     required this.auth,
     required this.dashboard,
+    required this.pointOfPurchase,
+    required this.supplier,
     required this.profile,
     required this.preferences,
   });
   final AuthViewModel auth;
   final DashboardViewModel dashboard;
+  final PointOfPurchaseViewModel pointOfPurchase;
+  final SupplierViewModel supplier;
   final ProfileViewModel profile;
   final PreferencesService preferences;
 }
@@ -49,8 +57,12 @@ abstract final class DependencyInjection {
     auth = AuthViewModel(authRepository);
     return AppDependencies(
       auth: auth,
-      dashboard: DashboardViewModel(DashboardRepository(resources, methods)),
-      profile: ProfileViewModel(ProfileRepository(authRepository)),
+      dashboard: DashboardViewModel(const DashboardRepository()),
+      pointOfPurchase: PointOfPurchaseViewModel(
+        PointOfPurchaseRepository(resources),
+      ),
+      supplier: SupplierViewModel(SupplierRepository(resources)),
+      profile: ProfileViewModel(ProfileRepository(resources)),
       preferences: prefs,
     );
   }

@@ -49,16 +49,20 @@ class _AuthRepository implements AuthRepositoryContract {
     if (error != null) throw error;
     return UserModel(id: request.username);
   }
+
   @override
   Future<void> logout() async {
     hasSession = false;
   }
+
   @override
   Future<void> clearLocalSession() async {
     hasSession = false;
   }
+
   @override
-  Future<UserModel> currentUser() async => const UserModel(id: 'buyer@example.com');
+  Future<UserModel> currentUser() async =>
+      const UserModel(id: 'buyer@example.com');
   @override
   Future<bool> restoreSession() async => hasSession;
 }

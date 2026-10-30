@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import '../../errors/app_exception.dart';
+import 'logging_interceptor.dart';
 
 class ErrorInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    SafeLoggingInterceptor.logError(err);
     final status = err.response?.statusCode;
     final body = err.response?.data;
     final message = _frappeMessage(body) ?? _statusMessage(status, err.type);

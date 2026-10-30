@@ -21,7 +21,9 @@ void main() {
       captured = request;
       if (request.path.endsWith('/fail')) {
         return {
-          '_server_messages': jsonEncode([jsonEncode({'message': 'Quantity must be positive.'})]),
+          '_server_messages': jsonEncode([
+            jsonEncode({'message': 'Quantity must be positive.'}),
+          ]),
         };
       }
       if (request.path.contains('/api/method/')) {
