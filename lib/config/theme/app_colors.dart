@@ -1,26 +1,46 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
-  static const primary = Color(0xFF086288);
-  static const primaryDark = Color(0xFF06445D);
-  static const secondary = Color(0xFF4D8DBA);
-  static const highlight = Color(0xFF97D7FF);
-  static const accent = Color(0xFFFFEFC4);
-  static const canvas = Color(0xFFF3F5F7);
-  static const surface = Color(0xFFFFFFFF);
-  static const textPrimary = Color(0xFF202A34);
-  static const textSecondary = Color(0xFF64717D);
-  static const border = Color(0xFFD8DEE5);
-  static const success = Color(0xFF24734D);
-  static const warning = Color(0xFF98620B);
-  static const error = Color(0xFFB4232E);
-  static const info = secondary;
+  // Primary brand colors - CAML Ocean Blue
+  static const primary = Color(0xFF17658A);
+  static const primaryDark = Color(0xFF164D66);
 
-  static const darkCanvas = Color(0xFF111820);
-  static const darkSurface = Color(0xFF1A242E);
-  static const darkTextPrimary = Color(0xFFE8EDF2);
-  static const darkTextSecondary = Color(0xFFADB9C5);
-  static const darkBorder = Color(0xFF34424F);
+  // Secondary brand colors - CAML Green
+  static const secondary = Color(0xFF75A843);
+  static const secondaryDark = Color(0xFF527D30);
+
+  // Highlight and accent colors
+  static const highlight = Color(0xFFA8DCE8);
+  static const accent = Color(0xFFE3C53A);
+  static const softBlue = Color(0xFF5CA5C4);
+
+  // Light theme background
+  static const canvas = Color(0xFFF4F8F9);
+  static const surface = Color(0xFFFFFFFF);
+
+  // Light theme text
+  static const textPrimary = Color(0xFF203642);
+  static const textSecondary = Color(0xFF647984);
+
+  // Borders and dividers
+  static const border = Color(0xFFD8E5E8);
+
+  // Semantic colors
+  static const success = Color(0xFF548A3B);
+  static const warning = Color(0xFFA87912);
+  static const error = Color(0xFFB83B42);
+  static const info = Color(0xFF267FA6);
+
+  // Dark theme backgrounds
+  static const darkCanvas = Color(0xFF101E26);
+  static const darkSurface = Color(0xFF192D38);
+
+  // Dark theme text
+  static const darkTextPrimary = Color(0xFFF0F6F7);
+  static const darkTextSecondary = Color(0xFFB1C5CE);
+
+  // Dark theme border
+  static const darkBorder = Color(0xFF34505D);
 }
 
 @immutable

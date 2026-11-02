@@ -10,6 +10,7 @@ import '../../features/dashboard/views/dashboard_screen.dart';
 import '../../features/design_system/views/design_system_screen.dart';
 import '../../features/point_of_purchase/views/point_of_purchase_screen.dart';
 import '../../features/point_of_purchase/views/point_of_purchase_detail_screen.dart';
+import '../../features/point_of_purchase/views/create_point_of_purchase_screen.dart';
 import '../../features/profile/views/profile_screen.dart';
 import '../../features/supplier/views/add_supplier_screen.dart';
 import '../../features/supplier/views/create_supplier_screen.dart';
@@ -49,6 +50,12 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
       path: RoutePaths.login,
       name: RouteNames.login,
       pageBuilder: (_, state) => _animatedPage(state, const LoginScreen()),
+    ),
+    GoRoute(
+      path: RoutePaths.createPointOfPurchase,
+      name: RouteNames.createPointOfPurchase,
+      pageBuilder: (_, state) =>
+          _animatedPage(state, const CreatePointOfPurchaseScreen()),
     ),
     StatefulShellRoute(
       builder: (context, state, navigationShell) =>

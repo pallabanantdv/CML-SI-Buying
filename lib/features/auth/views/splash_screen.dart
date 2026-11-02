@@ -23,6 +23,9 @@ class _SplashScreenState extends State<SplashScreen>
   static const _brandWords = ['CAML', 'SI', 'Buying'];
 
   late final AnimationController _controller;
+  late final Animation<double> _logoReveal;
+  late final Animation<double> _logoScale;
+  late final Animation<double> _logoRotation;
   late final List<Animation<double>> _wordReveals;
   late final Animation<double> _brandLabelReveal;
   late final Animation<double> _accentReveal;
@@ -38,6 +41,16 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: _animationDuration,
     );
+    _logoReveal = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0, 0.4, curve: Curves.easeOutCubic),
+    );
+    final logoMotion = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0, 0.46, curve: Curves.easeOutBack),
+    );
+    _logoScale = Tween<double>(begin: 0.78, end: 1).animate(logoMotion);
+    _logoRotation = Tween<double>(begin: -0.025, end: 0).animate(logoMotion);
     _wordReveals = [
       for (var index = 0; index < _brandWords.length; index++)
         CurvedAnimation(
@@ -124,6 +137,24 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    AnimatedBuilder(
+                      animation: _logoReveal,
+                      builder: (context, child) => Opacity(
+                        opacity: _logoReveal.value,
+                        child: Transform.translate(
+                          offset: Offset(0, 14 * (1 - _logoReveal.value)),
+                          child: child,
+                        ),
+                      ),
+                      child: ScaleTransition(
+                        scale: _logoScale,
+                        child: RotationTransition(
+                          turns: _logoRotation,
+                          child: _buildLogo(theme),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.large),
                     FadeTransition(
                       opacity: _brandLabelReveal,
                       child: SlideTransition(
@@ -207,6 +238,33 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
+
+  Widget _buildLogo(ThemeData theme) => Container(
+    width: 108,
+    height: 108,
+    padding: const EdgeInsets.all(7),
+    decoration: BoxDecoration(
+      color: theme.colorScheme.surface,
+      shape: BoxShape.circle,
+      border: Border.all(
+        color: theme.colorScheme.primary.withValues(alpha: 0.16),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: theme.colorScheme.primary.withValues(alpha: 0.12),
+          blurRadius: 24,
+          offset: const Offset(0, 9),
+        ),
+      ],
+    ),
+    child: ClipOval(
+      child: Image.asset(
+        'assets/images/CAML Logo.jpg.jpeg',
+        fit: BoxFit.cover,
+        excludeFromSemantics: true,
+      ),
+    ),
+  );
 
   Widget _buildAnimatedWord(int index, ThemeData theme, double availableWidth) {
     final reveal = _wordReveals[index];

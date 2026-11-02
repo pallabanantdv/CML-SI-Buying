@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../config/theme/app_spacing.dart';
+import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_dimensions.dart';
+import '../../config/theme/app_spacing.dart';
 
+/// Semantic tone of a card. Drives the accent bar and leading badge color.
+enum AppCardTone { neutral, primary, success, warning, error, info }
+
+/// Flat (2D) card: no elevation, a subtle border, a tinted icon badge and an
+/// optional accent bar. All colors come from the theme / [AppSemanticColors].
 class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
@@ -13,6 +19,9 @@ class AppCard extends StatelessWidget {
     this.onTap,
     this.padding = const EdgeInsets.all(AppSpacing.standard),
     this.child,
+    this.tone = AppCardTone.neutral,
+    this.showAccentBar = false,
+    this.showChevron = true,
   });
 
   final String? title;
@@ -23,56 +32,168 @@ class AppCard extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final Widget? child;
 
+  /// Color meaning of the card (badge tint + accent bar).
+  final AppCardTone tone;
+
+  /// Shows a thin colored bar on the leading edge of the card.
+  final bool showAccentBar;
+
+  /// Shows a chevron when [onTap] is set and no [trailing] is provided.
+  final bool showChevron;
+
+  Color _toneColor(ColorScheme scheme, AppSemanticColors colors) {
+    switch (tone) {
+      case AppCardTone.neutral:
+      case AppCardTone.primary:
+        return scheme.primary;
+      case AppCardTone.success:
+        return colors.success;
+      case AppCardTone.warning:
+        return colors.warning;
+      case AppCardTone.error:
+        return colors.error;
+      case AppCardTone.info:
+        return colors.info;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final leadingWidgets = leading == null
-        ? null
-        : <Widget>[leading!, const SizedBox(width: AppSpacing.small)];
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final colors = context.appColors;
+    final toneColor = _toneColor(scheme, colors);
+    final radius = BorderRadius.circular(AppDimensions.cardRadius);
+
+    final hasHeader =
+        title != null ||
+        subtitle != null ||
+        leading != null ||
+        trailing != null;
+    final effectiveTrailing =
+        trailing ??
+        (onTap != null && showChevron && child == null
+            ? Icon(Icons.chevron_right_rounded, color: colors.textSecondary)
+            : null);
+
     final content = Padding(
       padding: padding,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (title != null || leading != null || trailing != null)
+          if (hasHeader)
             Row(
               children: [
-                ...?leadingWidgets,
-                if (title != null)
+                if (leading != null) ...[
+                  _LeadingBadge(color: toneColor, child: leading!),
+                  const SizedBox(width: AppSpacing.medium),
+                ],
+                if (title != null || subtitle != null)
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          title!,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        if (subtitle != null)
+                        if (title != null)
+                          Text(
+                            title!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                        if (subtitle != null) ...[
+                          if (title != null) const SizedBox(height: 2),
                           Text(
                             subtitle!,
-                            style: Theme.of(context).textTheme.bodySmall,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.textSecondary,
+                            ),
                           ),
+                        ],
                       ],
                     ),
-                  ),
-                if (trailing != null) trailing!,
+                  )
+                else
+                  const Spacer(),
+                if (effectiveTrailing != null) ...[
+                  const SizedBox(width: AppSpacing.small),
+                  effectiveTrailing,
+                ],
               ],
             ),
           if (child != null) ...[
-            if (title != null || leading != null || trailing != null)
+            if (hasHeader) ...[
               const SizedBox(height: AppSpacing.medium),
+              Divider(height: 1, thickness: 1, color: colors.border),
+              const SizedBox(height: AppSpacing.medium),
+            ],
             child!,
           ],
         ],
       ),
     );
-    final card = Card(child: content);
-    if (onTap == null) return card;
+
     return Semantics(
-      button: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-        child: card,
+      button: onTap != null,
+      container: true,
+      child: Material(
+        color: scheme.surface,
+        elevation: 0,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: colors.border),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          splashColor: toneColor.withValues(alpha: 0.08),
+          highlightColor: toneColor.withValues(alpha: 0.04),
+          child: showAccentBar
+              ? Stack(
+                  children: [
+                    content,
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: 4,
+                      child: ColoredBox(color: toneColor),
+                    ),
+                  ],
+                )
+              : content,
+        ),
+      ),
+    );
+  }
+}
+
+/// Rounded square with a soft tinted background; recolors icons inside it.
+class _LeadingBadge extends StatelessWidget {
+  const _LeadingBadge({required this.color, required this.child});
+
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: IconTheme.merge(
+        data: IconThemeData(color: color, size: 24),
+        child: child,
       ),
     );
   }

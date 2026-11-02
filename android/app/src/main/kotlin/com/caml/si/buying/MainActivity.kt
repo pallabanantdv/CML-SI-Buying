@@ -1,4 +1,4 @@
-package com.example.cml_si_buying
+package com.caml.si.buying
 
 import io.flutter.embedding.android.FlutterActivity
 

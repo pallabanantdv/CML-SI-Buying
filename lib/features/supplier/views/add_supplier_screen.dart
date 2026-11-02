@@ -8,11 +8,14 @@ import '../../../config/routes/route_names.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
+import '../../../shared/widgets/app_app_bar.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_error_widget.dart';
+import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/app_page_banner.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../../../shared/widgets/app_status_badge.dart';
 import '../../../shared/widgets/app_text_field.dart';
@@ -36,7 +39,7 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
   @override
   Widget build(BuildContext context) => Consumer<SupplierViewModel>(
     builder: (context, viewModel, _) => Scaffold(
-      appBar: AppBar(title: Text(viewModel.title)),
+      appBar: AppAppBar(title: AppHeaderTitle(title: viewModel.title)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
@@ -65,7 +68,7 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppDimensions.pageGutter),
-        itemCount: suppliers.isEmpty ? 4 : suppliers.length + 3,
+        itemCount: suppliers.isEmpty ? 3 : suppliers.length + 2,
         separatorBuilder: (_, index) => SizedBox(
           height: index == 0 ? AppSpacing.medium : AppSpacing.standard,
         ),
@@ -77,37 +80,9 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
             );
           }
           if (index == 1) {
-            return Align(
-              alignment: Alignment.centerRight,
-              child: AppButton(
-                label: 'Add supplier',
-                icon: AppIconName.add,
-                expand: false,
-                onPressed: () async {
-                  final created = await context.pushNamed<bool>(
-                    RouteNames.createSupplier,
-                  );
-                  if (created == true && context.mounted) {
-                    await viewModel.loadSuppliers();
-                  }
-                },
-              ),
-            );
+            return _searchAndAddSupplier(context, viewModel);
           }
-          if (index == 2) {
-            return AppTextField(
-              label: 'Search suppliers',
-              hint: 'Search by name, ID, location, or contact',
-              prefixIcon: AppSvgIcon(
-                icon: AppIconName.search,
-                size: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              textInputAction: TextInputAction.search,
-              onChanged: viewModel.search,
-            );
-          }
-          if (suppliers.isEmpty) {
+          if (index == 2 && suppliers.isEmpty) {
             return SizedBox(
               height: 260,
               child: AppEmptyState(
@@ -121,11 +96,67 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
               ),
             );
           }
-          return _SupplierCard(supplier: suppliers[index - 3]);
+          return _SupplierCard(supplier: suppliers[index - 2]);
         },
       ),
     );
   }
+
+  Widget _searchAndAddSupplier(
+    BuildContext context,
+    SupplierViewModel viewModel,
+  ) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compactAction = constraints.maxWidth < 300;
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: AppCard(
+              tone: AppCardTone.info,
+              showAccentBar: true,
+              padding: const EdgeInsets.all(AppSpacing.small),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AppTextField(
+                      label: 'Search suppliers',
+                      hint: 'Name, ID, location, or contact',
+                      prefixIcon: AppSvgIcon(
+                        icon: AppIconName.search,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      textInputAction: TextInputAction.search,
+                      onChanged: viewModel.search,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.small),
+                  Tooltip(
+                    message: 'Add supplier',
+                    child: AppButton(
+                      label: compactAction ? 'Add' : 'Add',
+                      icon: AppIconName.add,
+                      expand: false,
+                      onPressed: () async {
+                        final created = await context.pushNamed<bool>(
+                          RouteNames.createSupplier,
+                        );
+                        if (created == true && context.mounted) {
+                          await viewModel.loadSuppliers();
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.small),
+        ],
+      );
+    },
+  );
 }
 
 class _SupplierHeading extends StatelessWidget {
@@ -136,45 +167,17 @@ class _SupplierHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final countLabel = count == totalCount
         ? '$count ${count == 1 ? 'supplier' : 'suppliers'}'
         : '$count of $totalCount';
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xSmall),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Supplier directory', style: theme.textTheme.titleLarge),
-                const SizedBox(height: AppSpacing.xSmall),
-                Text(
-                  'Browse registered suppliers',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.medium,
-              vertical: AppSpacing.small,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-            ),
-            child: Text(
-              countLabel,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
+      child: AppPageBanner(
+        eyebrow: 'Buying workspace',
+        title: 'Supplier directory',
+        description: 'Find and manage registered suppliers.',
+        icon: AppIconName.supplier,
+        badge: countLabel,
       ),
     );
   }
@@ -211,6 +214,12 @@ class _SupplierCard extends StatelessWidget {
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.standard),
+      tone: supplier.isDisabled
+          ? AppCardTone.error
+          : isActive
+          ? AppCardTone.success
+          : AppCardTone.warning,
+      showAccentBar: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -219,11 +228,11 @@ class _SupplierCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: theme.colorScheme.primaryContainer,
+                backgroundColor: theme.colorScheme.secondaryContainer,
                 child: Text(
                   initial,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
+                    color: theme.colorScheme.onSecondaryContainer,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -289,17 +298,30 @@ class _SupplierFact extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
-    constraints: const BoxConstraints(maxWidth: 280),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: AppSpacing.xSmall),
-        Text(value, style: Theme.of(context).textTheme.bodyMedium),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 280),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.small,
+          vertical: AppSpacing.xSmall,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.42),
+          borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: theme.textTheme.labelSmall),
+            const SizedBox(height: AppSpacing.xSmall),
+            Text(value, style: theme.textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SupplierContact extends StatelessWidget {
@@ -314,7 +336,9 @@ class _SupplierContact extends StatelessWidget {
       AppSvgIcon(
         icon: icon,
         size: 16,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        color: icon == AppIconName.phone
+            ? context.appColors.success
+            : context.appColors.info,
       ),
       const SizedBox(width: AppSpacing.small),
       Expanded(

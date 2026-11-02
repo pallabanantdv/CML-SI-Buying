@@ -7,15 +7,20 @@ import 'package:provider/provider.dart';
 
 import '../../../config/constants/app_constants.dart';
 import '../../../config/routes/route_names.dart';
+import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
 import '../../../config/theme/theme_provider.dart';
 import '../../../features/auth/viewmodels/auth_viewmodel.dart';
+import '../../../shared/widgets/app_app_bar.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_error_widget.dart';
+import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/app_page_banner.dart';
+import '../../../shared/widgets/app_status_badge.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../models/profile_model.dart';
 import '../viewmodels/profile_viewmodel.dart';
@@ -50,7 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) => Consumer<ProfileViewModel>(
     builder: (context, profile, _) => Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: const AppAppBar(title: AppHeaderTitle(title: 'Profile')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
@@ -59,19 +64,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: ListView(
             padding: const EdgeInsets.all(AppDimensions.pageGutter),
             children: [
-              Text(
-                'Your profile',
-                style: Theme.of(context).textTheme.headlineSmall,
+              const AppPageBanner(
+                eyebrow: 'Account settings',
+                title: 'Your profile',
+                description: 'Review your account details and app preferences.',
+                icon: AppIconName.profile,
               ),
-              const SizedBox(height: AppSpacing.xSmall),
-              Text(
-                'Manage your account and app preferences.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: AppSpacing.medium),
+              const SizedBox(height: AppSpacing.large),
               _profileCard(context, profile),
               const SizedBox(height: AppSpacing.large),
               AppCard(
+                tone: AppCardTone.info,
+                showAccentBar: true,
                 title: 'Appearance',
                 subtitle: 'Choose how CML SI Buying looks on this device.',
                 leading: AppSvgIcon(
@@ -83,6 +87,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: AppSpacing.large),
               if (!AppConstants.bypassLoginForModulePreview)
                 AppCard(
+                  tone: AppCardTone.warning,
+                  showAccentBar: true,
                   title: 'Session',
                   subtitle: 'Sign out of your current account on this device.',
                   leading: AppSvgIcon(
@@ -117,6 +123,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _profileCard(BuildContext context, ProfileViewModel state) {
     if (state.isLoading) {
       return const AppCard(
+        tone: AppCardTone.info,
+        showAccentBar: true,
         title: 'Account information',
         child: SizedBox(
           height: 120,
@@ -126,6 +134,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     if (state.errorMessage != null) {
       return AppCard(
+        tone: AppCardTone.error,
+        showAccentBar: true,
         title: 'Account information',
         child: AppErrorWidget(
           message: state.errorMessage!,
@@ -139,6 +149,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final profile = state.profile;
     if (profile == null) {
       return const AppCard(
+        tone: AppCardTone.warning,
+        showAccentBar: true,
         title: 'Account information',
         child: AppEmptyState(
           icon: AppIconName.person,
@@ -185,8 +197,15 @@ class _UserProfileCard extends StatelessWidget {
               '${fields[field.$1]}'.trim().isNotEmpty,
         )
         .toList(growable: false);
+    final enabledValue = '${fields['enabled']}'.toLowerCase();
+    final isEnabled =
+        enabledValue == '1' ||
+        enabledValue == 'true' ||
+        enabledValue == 'enabled';
 
     return AppCard(
+      tone: AppCardTone.primary,
+      showAccentBar: true,
       title: 'Account information',
       leading: AppSvgIcon(
         icon: AppIconName.person,
@@ -197,9 +216,18 @@ class _UserProfileCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 30,
-                backgroundColor: theme.colorScheme.primaryContainer,
+              Container(
+                width: 64,
+                height: 64,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.28),
+                    width: 2,
+                  ),
+                ),
                 child: Text(
                   initials.isEmpty ? '?' : initials,
                   style: theme.textTheme.titleLarge?.copyWith(
@@ -213,30 +241,68 @@ class _UserProfileCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(profile.fullName, style: theme.textTheme.titleLarge),
+                    Text(
+                      profile.fullName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge,
+                    ),
                     const SizedBox(height: AppSpacing.xSmall),
-                    Text(profile.email, style: theme.textTheme.bodySmall),
+                    Text(
+                      profile.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall,
+                    ),
                   ],
                 ),
               ),
+              if (fields.containsKey('enabled')) ...[
+                const SizedBox(width: AppSpacing.small),
+                AppStatusBadge(
+                  label: isEnabled ? 'Enabled' : 'Disabled',
+                  color: isEnabled
+                      ? context.appColors.success
+                      : context.appColors.error,
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: AppSpacing.large),
-          Divider(color: theme.colorScheme.outlineVariant, height: 1),
-          const SizedBox(height: AppSpacing.small),
-          for (var index = 0; index < visibleFields.length; index++) ...[
-            if (index > 0)
-              Divider(color: theme.colorScheme.outlineVariant, height: 1),
-            const SizedBox(height: AppSpacing.small),
-            _ProfileDetailRow(
-              label: visibleFields[index].$2,
-              value: visibleFields[index].$1 == 'enabled'
-                  ? (fields[visibleFields[index].$1].toString() == '1'
-                        ? 'Enabled'
-                        : 'Disabled')
-                  : '${fields[visibleFields[index].$1]}',
+          if (visibleFields.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.large),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const spacing = AppSpacing.small;
+                final columns = constraints.maxWidth >= 560 ? 2 : 1;
+                final itemWidth = columns == 2
+                    ? (constraints.maxWidth - spacing) / 2
+                    : constraints.maxWidth;
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    for (var index = 0; index < visibleFields.length; index++)
+                      SizedBox(
+                        width: itemWidth,
+                        child: _ProfileDetailRow(
+                          label: visibleFields[index].$2,
+                          value: visibleFields[index].$1 == 'enabled'
+                              ? (isEnabled ? 'Enabled' : 'Disabled')
+                              : '${fields[visibleFields[index].$1]}',
+                          icon: _profileFieldIcon(visibleFields[index].$1),
+                          accent: visibleFields[index].$1 == 'enabled'
+                              ? (isEnabled
+                                    ? context.appColors.success
+                                    : context.appColors.error)
+                              : index.isEven
+                              ? theme.colorScheme.primary
+                              : context.appColors.info,
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
-            const SizedBox(height: AppSpacing.small),
           ],
           if (profile.roles.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.standard),
@@ -277,10 +343,18 @@ class _ProfileRolesState extends State<_ProfileRoles> {
           children: [
             for (final role in roles)
               Chip(
+                avatar: AppSvgIcon(
+                  icon: AppIconName.badge,
+                  size: 15,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 label: Text(role),
-                backgroundColor: Theme.of(context)
-                    .colorScheme
-                    .secondaryContainer,
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer
+                    .withValues(alpha: 0.55),
+                labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w600,
+                ),
                 side: BorderSide.none,
                 visualDensity: VisualDensity.compact,
               ),
@@ -301,29 +375,76 @@ class _ProfileRolesState extends State<_ProfileRoles> {
 }
 
 class _ProfileDetailRow extends StatelessWidget {
-  const _ProfileDetailRow({required this.label, required this.value});
+  const _ProfileDetailRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.accent,
+  });
 
   final String label;
   final String value;
+  final AppIconName icon;
+  final Color accent;
 
   @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(
-        child: Text(label, style: Theme.of(context).textTheme.bodySmall),
-      ),
-      const SizedBox(width: AppSpacing.medium),
-      Flexible(
-        child: Text(
-          value,
-          textAlign: TextAlign.end,
-          style: Theme.of(context).textTheme.bodyMedium,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 68),
+      padding: const EdgeInsets.all(AppSpacing.small),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.08),
         ),
       ),
-    ],
-  );
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
+            ),
+            child: AppSvgIcon(icon: icon, size: 17, color: accent),
+          ),
+          const SizedBox(width: AppSpacing.small),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: theme.textTheme.labelSmall),
+                const SizedBox(height: AppSpacing.xSmall),
+                Text(
+                  value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
+
+AppIconName _profileFieldIcon(String field) => switch (field) {
+  'email' => AppIconName.email,
+  'username' => AppIconName.person,
+  'user_type' => AppIconName.badge,
+  'enabled' => AppIconName.success,
+  'language' || 'time_zone' => AppIconName.settings,
+  _ => AppIconName.info,
+};
 
 class _ThemeModeChips extends StatelessWidget {
   const _ThemeModeChips();
@@ -386,6 +507,13 @@ class _ThemeModeChip extends StatelessWidget {
     ),
     label: Text(label),
     selected: mode == selected,
+    selectedColor: Theme.of(context).colorScheme.secondaryContainer
+        .withValues(alpha: 0.7),
+    side: BorderSide(
+      color: mode == selected
+          ? Theme.of(context).colorScheme.secondary
+          : Theme.of(context).colorScheme.outlineVariant,
+    ),
     onSelected: (value) {
       if (value) unawaited(onSelected(mode));
     },

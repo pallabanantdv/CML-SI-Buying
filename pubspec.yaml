@@ -31,7 +31,16 @@ flutter:
   assets:
     - .env.example
     - assets/icons/
+    - assets/images/
+    - assets/fonts/OFL.txt
+    - assets/fonts/Poppins-OFL.txt
   fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
     - family: Inter
       fonts:
         - asset: assets/fonts/Inter-Regular.ttf

@@ -8,10 +8,13 @@ import '../../../config/routes/route_names.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
+import '../../../shared/widgets/app_app_bar.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_error_widget.dart';
+import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/app_page_banner.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../../../shared/widgets/app_status_badge.dart';
 import '../models/point_of_purchase_model.dart';
@@ -34,7 +37,7 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
   @override
   Widget build(BuildContext context) => Consumer<PointOfPurchaseViewModel>(
     builder: (context, viewModel, _) => Scaffold(
-      appBar: AppBar(title: Text(viewModel.title)),
+      appBar: AppAppBar(title: AppHeaderTitle(title: viewModel.title)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
@@ -65,13 +68,13 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(AppDimensions.pageGutter),
-          children: const [
-            SizedBox(height: 100),
-            AppEmptyState(
+          children: [
+            const _ListHeading(count: 0),
+            const SizedBox(height: AppSpacing.large),
+            const AppEmptyState(
               icon: AppIconName.purchase,
               title: 'No purchases found',
-              description:
-                  'Supplier point-of-purchase records will appear here.',
+              description: 'Supplier purchase records will appear here.',
             ),
           ],
         ),
@@ -112,42 +115,14 @@ class _ListHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.small),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Supplier purchases', style: theme.textTheme.titleLarge),
-                const SizedBox(height: AppSpacing.xSmall),
-                Text(
-                  'Recent point-of-purchase records',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.medium,
-              vertical: AppSpacing.small,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-            ),
-            child: Text(
-              '$count records',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
+      child: AppPageBanner(
+        eyebrow: 'Buying workspace',
+        title: 'Supplier purchases',
+        description: 'Review recent point-of-purchase records.',
+        icon: AppIconName.purchase,
+        badge: '$count records',
       ),
     );
   }
@@ -178,6 +153,12 @@ class _PurchaseCard extends StatelessWidget {
     return AppCard(
       onTap: onTap,
       padding: const EdgeInsets.all(AppSpacing.standard),
+      tone: record.docStatus == 1
+          ? AppCardTone.success
+          : record.docStatus == 2
+          ? AppCardTone.error
+          : AppCardTone.warning,
+      showAccentBar: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -246,26 +227,36 @@ class _PurchaseCard extends StatelessWidget {
           ),
           if (amount != null) ...[
             const SizedBox(height: AppSpacing.standard),
-            Divider(color: theme.colorScheme.outlineVariant, height: 1),
-            const SizedBox(height: AppSpacing.small),
-            Row(
-              children: [
-                Text('Net payable', style: theme.textTheme.bodySmall),
-                const Spacer(),
-                Text(
-                  _number(amount),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w700,
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.medium,
+                vertical: AppSpacing.small,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondaryContainer.withValues(
+                  alpha: 0.55,
+                ),
+                borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
+              ),
+              child: Row(
+                children: [
+                  Text('Net payable', style: theme.textTheme.bodySmall),
+                  const Spacer(),
+                  Text(
+                    _number(amount),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onSecondaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.xSmall),
-                AppSvgIcon(
-                  icon: AppIconName.chevronRight,
-                  size: 18,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ],
+                  const SizedBox(width: AppSpacing.xSmall),
+                  AppSvgIcon(
+                    icon: AppIconName.chevronRight,
+                    size: 18,
+                    color: theme.colorScheme.onSecondaryContainer,
+                  ),
+                ],
+              ),
             ),
           ],
         ],
@@ -281,14 +272,28 @@ class _RecordFact extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
-      const SizedBox(height: AppSpacing.xSmall),
-      Text(value, style: Theme.of(context).textTheme.bodyMedium),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 240),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.small,
+        vertical: AppSpacing.xSmall,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: theme.textTheme.labelSmall),
+          const SizedBox(height: AppSpacing.xSmall),
+          Text(value, style: theme.textTheme.bodyMedium),
+        ],
+      ),
+    );
+  }
 }
 
 String _number(double value) => value.toStringAsFixed(2);

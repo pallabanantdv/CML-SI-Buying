@@ -6,11 +6,13 @@ import 'package:provider/provider.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
 import '../../../config/theme/theme_provider.dart';
+import '../../../shared/widgets/app_app_bar.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_checkbox.dart';
 import '../../../shared/widgets/app_dialog.dart';
 import '../../../shared/widgets/app_dropdown.dart';
+import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_radio.dart';
 import '../../../shared/widgets/app_snackbar.dart';
 import '../../../shared/widgets/app_switch.dart';
@@ -49,7 +51,7 @@ class _DesignSystemScreenState extends State<DesignSystemScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Design system')),
+    appBar: const AppAppBar(title: AppHeaderTitle(title: 'Design system')),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(

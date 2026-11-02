@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../config/routes/route_names.dart';
 import 'app_bottom_navigation.dart';
 import '../widgets/app_svg_icon.dart';
 
@@ -28,7 +31,11 @@ class MainShell extends StatelessWidget {
           child: FloatingActionButton(
             heroTag: 'main-shell-create-action',
             tooltip: 'Create',
-            onPressed: () {},
+            onPressed: () {
+              unawaited(
+                context.pushNamed<bool>(RouteNames.createPointOfPurchase),
+              );
+            },
             elevation: 8,
             shape: const CircleBorder(),
             backgroundColor: Theme.of(context).colorScheme.primary,

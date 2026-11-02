@@ -1,11 +1,26 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val releaseKeyPropertiesFile = rootProject.file("key.properties")
+val releaseKeyProperties = Properties()
+if (releaseKeyPropertiesFile.isFile) {
+    releaseKeyPropertiesFile.inputStream().use { releaseKeyProperties.load(it) }
+}
+
+val releaseStoreFilePath = releaseKeyProperties.getProperty("storeFile")?.trim()
+val releaseStoreFile = releaseStoreFilePath?.let { rootProject.file(it) }
+val releaseSigningConfigured =
+    listOf("storePassword", "keyPassword", "keyAlias").all {
+        !releaseKeyProperties.getProperty(it).isNullOrBlank()
+    } && releaseStoreFile?.isFile == true
+
 android {
-    namespace = "com.example.cml_si_buying"
+    namespace = "com.caml.si.buying"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,25 +30,44 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.cml_si_buying"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        applicationId = "com.caml.si.buying"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
-        // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
-        // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
-        // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = releaseKeyProperties.getProperty("storePassword")
+                keyAlias = releaseKeyProperties.getProperty("keyAlias")
+                keyPassword = releaseKeyProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // A release build must use a locally configured upload key.
+            // Never fall back to Android's public debug signing key.
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+}
+
+tasks.configureEach {
+    // Resource packaging runs before signing and does not need the upload key.
+    // Validate only when Gradle is about to create the release APK or bundle.
+    if (name == "packageRelease" || name == "bundleRelease") {
+        doFirst {
+            check(releaseSigningConfigured) {
+                "Release signing is not configured. Create android/key.properties " +
+                    "and add the keystore described in android/key.properties.example."
+            }
         }
     }
 }

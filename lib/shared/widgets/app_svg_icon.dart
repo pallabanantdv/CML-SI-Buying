@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 /// Semantic icon names backed by the app's monochrome SVG icon set.
 enum AppIconName {
   add,
+  arrowBack,
   dashboard,
   purchase,
   supplier,
@@ -49,6 +50,7 @@ class AppSvgIcon extends StatelessWidget {
   final String? semanticLabel;
 
   String get _assetName => switch (icon) {
+    AppIconName.arrowBack => 'arrow_back',
     AppIconName.cloudOff => 'cloud_off',
     AppIconName.visibilityOff => 'visibility_off',
     AppIconName.expandMore => 'expand_more',

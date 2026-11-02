@@ -46,7 +46,7 @@ abstract final class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
-      fontFamily: AppTextStyles.fontFamily,
+      fontFamily: AppTextStyles.bodyFontFamily,
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: isLight
@@ -141,10 +141,30 @@ abstract final class AppTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
         surfaceTintColor: scheme.surface,
+        titleTextStyle: textTheme.titleLarge,
+        contentTextStyle: textTheme.bodyMedium,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDimensions.dialogRadius),
         ),
       ),
+      listTileTheme: ListTileThemeData(
+        titleTextStyle: textTheme.titleSmall,
+        subtitleTextStyle: textTheme.bodyMedium,
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelStyle: textTheme.labelLarge,
+        unselectedLabelStyle: textTheme.labelMedium,
+      ),
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        selectedLabelStyle: textTheme.labelSmall,
+        unselectedLabelStyle: textTheme.labelSmall,
+      ),
+      dataTableTheme: DataTableThemeData(
+        headingTextStyle: textTheme.labelLarge,
+        dataTextStyle: textTheme.bodyMedium,
+      ),
+      popupMenuTheme: PopupMenuThemeData(textStyle: textTheme.bodyMedium),
+      tooltipTheme: TooltipThemeData(textStyle: textTheme.bodySmall),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: scheme.surface,
         indicatorColor: scheme.primary.withValues(alpha: 0.12),

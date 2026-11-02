@@ -4,6 +4,7 @@ abstract final class RouteNames {
   static const dashboard = 'dashboard';
   static const pointOfPurchase = 'point-of-purchase';
   static const pointOfPurchaseDetail = 'point-of-purchase-detail';
+  static const createPointOfPurchase = 'create-point-of-purchase';
   static const addSupplier = 'add-supplier';
   static const createSupplier = 'create-supplier';
   static const profile = 'profile';
@@ -15,6 +16,7 @@ abstract final class RoutePaths {
   static const login = '/login';
   static const dashboard = '/dashboard';
   static const pointOfPurchase = '/point-of-purchase';
+  static const createPointOfPurchase = '/create-point-of-purchase';
   static const addSupplier = '/add-supplier';
   static const profile = '/profile';
   static const designSystem = '/design-system';

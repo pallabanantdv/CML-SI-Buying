@@ -4,8 +4,11 @@ import 'package:provider/provider.dart';
 
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
+import '../../../shared/widgets/app_app_bar.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/app_header_title.dart';
+import '../../../shared/widgets/app_page_banner.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../../../shared/widgets/app_text_field.dart';
 import '../viewmodels/supplier_viewmodel.dart';
@@ -63,7 +66,7 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Add supplier')),
+    appBar: const AppAppBar(title: AppHeaderTitle(title: 'Add supplier')),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: AppDimensions.formMaxWidth),
@@ -72,17 +75,17 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
           child: ListView(
             padding: const EdgeInsets.all(AppDimensions.pageGutter),
             children: [
-              Text(
-                'Create supplier',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: AppSpacing.xSmall),
-              Text(
-                'Enter the supplier details to add a new record.',
-                style: Theme.of(context).textTheme.bodyMedium,
+              AppPageBanner(
+                eyebrow: 'Supplier setup',
+                title: 'Create a supplier',
+                description:
+                    'Add the profile, location, and contact information.',
+                icon: AppIconName.add,
               ),
               const SizedBox(height: AppSpacing.large),
               AppCard(
+                tone: AppCardTone.primary,
+                showAccentBar: true,
                 title: 'Supplier details',
                 leading: AppSvgIcon(
                   icon: AppIconName.supplier,
@@ -136,6 +139,8 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
               ),
               const SizedBox(height: AppSpacing.standard),
               AppCard(
+                tone: AppCardTone.info,
+                showAccentBar: true,
                 title: 'Location and contact',
                 leading: AppSvgIcon(
                   icon: AppIconName.person,
@@ -197,10 +202,37 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (viewModel.errorMessage != null) ...[
-                      Text(
-                        viewModel.errorMessage!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.medium),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.errorContainer
+                              .withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.badgeRadius,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            AppSvgIcon(
+                              icon: AppIconName.info,
+                              size: 18,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onErrorContainer,
+                            ),
+                            const SizedBox(width: AppSpacing.small),
+                            Expanded(
+                              child: Text(
+                                viewModel.errorMessage!,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onErrorContainer,
+                                    ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: AppSpacing.small),

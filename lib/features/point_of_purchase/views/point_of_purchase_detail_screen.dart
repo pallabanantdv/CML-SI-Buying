@@ -6,9 +6,12 @@ import 'package:provider/provider.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
+import '../../../shared/widgets/app_app_bar.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/app_page_banner.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../../../shared/widgets/app_status_badge.dart';
 import '../viewmodels/point_of_purchase_viewmodel.dart';
@@ -50,7 +53,7 @@ class _PointOfPurchaseDetailScreenState
   @override
   Widget build(BuildContext context) => Consumer<PointOfPurchaseViewModel>(
     builder: (context, viewModel, _) => Scaffold(
-      appBar: AppBar(title: const Text('Purchase details')),
+      appBar: const AppAppBar(title: AppHeaderTitle(title: 'Purchase details')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
@@ -105,6 +108,19 @@ class _PointOfPurchaseDetailScreenState
     return ListView(
       padding: const EdgeInsets.all(AppDimensions.pageGutter),
       children: [
+        AppPageBanner(
+          eyebrow: 'Purchase record',
+          title: _text(record['name']) ?? 'Purchase details',
+          description: 'Supplier, delivery, payment, and item information.',
+          icon: AppIconName.purchase,
+          badge: switch (int.tryParse(record['docstatus']?.toString() ?? '')) {
+            1 => 'Submitted',
+            2 => 'Cancelled',
+            _ => 'Draft',
+          },
+        ),
+
+        const SizedBox(height: AppSpacing.standard),
         _OverviewCard(record: record),
         const SizedBox(height: AppSpacing.standard),
         for (final section in _detailSections) ...[
@@ -136,7 +152,11 @@ class _DynamicDetailSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AppCard(
     title: title,
+    tone: AppCardTone.info,
+    showAccentBar: true,
     child: Column(
+      mainAxisAlignment: MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (var index = 0; index < fields.length; index++) ...[
           if (index > 0) const SizedBox(height: AppSpacing.medium),
@@ -160,9 +180,13 @@ class _ChildTableSection extends StatelessWidget {
   Widget build(BuildContext context) => AppCard(
     title: _humanize(name),
     subtitle: '${rows.length} ${rows.length == 1 ? 'row' : 'rows'}',
+    tone: AppCardTone.success,
+    showAccentBar: true,
     child: rows.isEmpty
         ? Text('No rows', style: Theme.of(context).textTheme.bodySmall)
         : Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (var index = 0; index < rows.length; index++) ...[
                 if (index > 0) ...[
@@ -248,6 +272,12 @@ class _OverviewCard extends StatelessWidget {
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.large),
+      tone: docStatus == 1
+          ? AppCardTone.success
+          : docStatus == 2
+          ? AppCardTone.error
+          : AppCardTone.warning,
+      showAccentBar: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -289,21 +319,34 @@ class _OverviewCard extends StatelessWidget {
           ),
           if (netPayable != null) ...[
             const SizedBox(height: AppSpacing.standard),
-            Divider(color: theme.colorScheme.outlineVariant, height: 1),
-            const SizedBox(height: AppSpacing.standard),
-            Row(
-              children: [
-                Expanded(
-                  child: Text('Net payable', style: theme.textTheme.bodyMedium),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.medium,
+                vertical: AppSpacing.standard,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondaryContainer.withValues(
+                  alpha: 0.6,
                 ),
-                Text(
-                  _formatValue('net_payable', netPayable),
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w700,
+                borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Net payable',
+                      style: theme.textTheme.bodyMedium,
+                    ),
                   ),
-                ),
-              ],
+                  Text(
+                    _formatValue('net_payable', netPayable),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: theme.colorScheme.onSecondaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ],
@@ -333,7 +376,11 @@ class _DetailSection extends StatelessWidget {
 
     return AppCard(
       title: title,
+      tone: AppCardTone.primary,
+      showAccentBar: true,
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (var index = 0; index < visibleFields.length; index++) ...[
             if (index > 0) const SizedBox(height: AppSpacing.medium),
