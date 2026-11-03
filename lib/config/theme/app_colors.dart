@@ -26,10 +26,10 @@ abstract final class AppColors {
   static const border = Color(0xFFD8E5E8);
 
   // Semantic colors
-  static const success = Color(0xFF548A3B);
-  static const warning = Color(0xFFA87912);
+  static const success = Color(0xFF46732F);
+  static const warning = Color(0xFF825C0B);
   static const error = Color(0xFFB83B42);
-  static const info = Color(0xFF267FA6);
+  static const info = Color(0xFF216E91);
 
   // Dark theme backgrounds
   static const darkCanvas = Color(0xFF101E26);
@@ -38,6 +38,11 @@ abstract final class AppColors {
   // Dark theme text
   static const darkTextPrimary = Color(0xFFF0F6F7);
   static const darkTextSecondary = Color(0xFFB1C5CE);
+
+  static const darkSuccess = Color(0xFFA0CF7D);
+  static const darkWarning = Color(0xFFE8C675);
+  static const darkError = Color(0xFFFFA4A9);
+  static const darkInfo = Color(0xFFA8DCE8);
 
   // Dark theme border
   static const darkBorder = Color(0xFF34505D);

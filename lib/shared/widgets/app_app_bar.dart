@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_svg_icon.dart';
 
-/// App bar that uses the app's themed SVG back icon on poppable routes.
+/// Common branded header, with route-aware back navigation and screen actions.
 class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   const AppAppBar({
     super.key,
@@ -16,14 +16,13 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool? centerTitle;
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(56);
 
   @override
   Widget build(BuildContext context) {
     final canPop = ModalRoute.of(context)?.canPop ?? false;
 
     return AppBar(
-      // leadingWidth: 40,
       centerTitle: centerTitle,
       automaticallyImplyLeading: false,
       leading: canPop
@@ -33,7 +32,23 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
               icon: const AppSvgIcon(icon: AppIconName.arrowBack),
             )
           : null,
-      title: title,
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.asset(
+              'assets/images/CAML Logo.jpg.jpeg',
+              width: 32,
+              height: 32,
+              fit: BoxFit.contain,
+              semanticLabel: 'CAML logo',
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(child: title),
+        ],
+      ),
       actions: actions,
     );
   }

@@ -7,9 +7,42 @@ import 'package:cml_si_buying/shared/widgets/app_button.dart';
 import 'package:cml_si_buying/shared/widgets/app_text_field.dart';
 
 void main() {
+  test(
+    'mobile text and status colors have readable contrast in both themes',
+    () {
+      double contrast(Color a, Color b) {
+        final aa = a.computeLuminance();
+        final bb = b.computeLuminance();
+        return ((aa > bb ? aa : bb) + 0.05) / ((aa < bb ? aa : bb) + 0.05);
+      }
+
+      for (final theme in [AppTheme.light, AppTheme.dark]) {
+        final semantic = theme.extension<AppSemanticColors>()!;
+        final surface = theme.colorScheme.surface;
+        expect(
+          contrast(theme.colorScheme.primary, surface),
+          greaterThanOrEqualTo(4.5),
+        );
+        expect(
+          contrast(semantic.textSecondary, surface),
+          greaterThanOrEqualTo(4.5),
+        );
+        for (final color in [
+          semantic.success,
+          semantic.warning,
+          semantic.error,
+          semantic.info,
+        ]) {
+          final badge = Color.alphaBlend(color.withValues(alpha: 0.1), surface);
+          expect(contrast(color, badge), greaterThanOrEqualTo(4.5));
+        }
+      }
+    },
+  );
+
   test('light and dark themes use the centralized semantic palette', () {
     expect(AppTheme.light.colorScheme.primary, AppColors.primary);
-    expect(AppTheme.dark.colorScheme.primary, AppColors.primary);
+    expect(AppTheme.dark.colorScheme.primary, AppColors.highlight);
     expect(AppTheme.light.colorScheme.surface, AppColors.surface);
     expect(AppTheme.dark.colorScheme.surface, AppColors.darkSurface);
     expect(
@@ -18,7 +51,7 @@ void main() {
     );
     expect(
       AppTheme.dark.extension<AppSemanticColors>()!.warning,
-      AppColors.warning,
+      AppColors.darkWarning,
     );
   });
 
@@ -55,6 +88,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('Hide password'), findsOneWidget);
     expect(find.byType(TextFormField), findsOneWidget);
+  });
+
+  testWidgets('compact controls preserve 48 dp touch targets', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Column(
+            children: [
+              AppButton(label: 'Save', onPressed: () {}),
+              IconButton(
+                tooltip: 'Action',
+                onPressed: () {},
+                icon: const Icon(Icons.add),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(
+      tester.getSize(find.byType(FilledButton)).height,
+      greaterThanOrEqualTo(48),
+    );
+    expect(
+      tester.getSize(find.byType(IconButton)).height,
+      greaterThanOrEqualTo(48),
+    );
   });
 
   testWidgets('app button preserves disabled loading state', (tester) async {

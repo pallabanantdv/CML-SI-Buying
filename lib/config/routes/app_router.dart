@@ -12,6 +12,7 @@ import '../../features/point_of_purchase/views/point_of_purchase_screen.dart';
 import '../../features/point_of_purchase/views/point_of_purchase_detail_screen.dart';
 import '../../features/point_of_purchase/views/create_point_of_purchase_screen.dart';
 import '../../features/profile/views/profile_screen.dart';
+import '../../features/settings/views/settings_screen.dart';
 import '../../features/supplier/views/add_supplier_screen.dart';
 import '../../features/supplier/views/create_supplier_screen.dart';
 import '../../shared/navigation/animated_branch_container.dart';
@@ -123,6 +124,14 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
               name: RouteNames.profile,
               pageBuilder: (_, state) =>
                   _animatedPage(state, const ProfileScreen()),
+              routes: [
+                GoRoute(
+                  path: 'settings',
+                  name: RouteNames.settings,
+                  pageBuilder: (_, state) =>
+                      _animatedPage(state, const SettingsScreen()),
+                ),
+              ],
             ),
           ],
         ),

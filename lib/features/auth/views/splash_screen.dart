@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import '../../../config/constants/app_constants.dart';
 import '../../../config/routes/route_names.dart';
 import '../../../config/theme/app_spacing.dart';
+import '../../../shared/widgets/app_app_bar.dart';
+import '../../../shared/widgets/app_header_title.dart';
 import '../viewmodels/auth_viewmodel.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -126,110 +128,117 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
+      appBar: const AppAppBar(title: AppHeaderTitle(title: 'CAML SI Buying')),
       backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) => Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.large),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 620),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AnimatedBuilder(
-                      animation: _logoReveal,
-                      builder: (context, child) => Opacity(
-                        opacity: _logoReveal.value,
-                        child: Transform.translate(
-                          offset: Offset(0, 14 * (1 - _logoReveal.value)),
-                          child: child,
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.large,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 620),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedBuilder(
+                        animation: _logoReveal,
+                        builder: (context, child) => Opacity(
+                          opacity: _logoReveal.value,
+                          child: Transform.translate(
+                            offset: Offset(0, 14 * (1 - _logoReveal.value)),
+                            child: child,
+                          ),
+                        ),
+                        child: ScaleTransition(
+                          scale: _logoScale,
+                          child: RotationTransition(
+                            turns: _logoRotation,
+                            child: _buildLogo(theme),
+                          ),
                         ),
                       ),
-                      child: ScaleTransition(
-                        scale: _logoScale,
-                        child: RotationTransition(
-                          turns: _logoRotation,
-                          child: _buildLogo(theme),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.large),
-                    FadeTransition(
-                      opacity: _brandLabelReveal,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.16),
-                          end: Offset.zero,
-                        ).animate(_brandLabelReveal),
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: AppSpacing.small,
-                          children: [
-                            Container(
-                              width: 7,
-                              height: 7,
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary,
-                                borderRadius: BorderRadius.circular(2),
+                      const SizedBox(height: AppSpacing.large),
+                      FadeTransition(
+                        opacity: _brandLabelReveal,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.16),
+                            end: Offset.zero,
+                          ).animate(_brandLabelReveal),
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: AppSpacing.small,
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
                               ),
-                            ),
-                            Text(
-                              'PROCUREMENT WORKSPACE',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontSize: constraints.maxWidth < 300 ? 10 : 11,
-                                letterSpacing: 1.5,
-                                fontWeight: FontWeight.w600,
+                              Text(
+                                'PROCUREMENT WORKSPACE',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontSize: constraints.maxWidth < 300
+                                      ? 10
+                                      : 11,
+                                  letterSpacing: 1.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.medium),
-                    Semantics(
-                      label: 'CAML SI Buying',
-                      child: ExcludeSemantics(
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: AppSpacing.small,
-                          runSpacing: AppSpacing.xSmall,
-                          children: [
-                            for (
-                              var index = 0;
-                              index < _brandWords.length;
-                              index++
-                            )
-                              _buildAnimatedWord(
-                                index,
-                                theme,
-                                constraints.maxWidth,
-                              ),
-                          ],
+                      const SizedBox(height: AppSpacing.medium),
+                      Semantics(
+                        label: 'CAML SI Buying',
+                        child: ExcludeSemantics(
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: AppSpacing.small,
+                            runSpacing: AppSpacing.xSmall,
+                            children: [
+                              for (
+                                var index = 0;
+                                index < _brandWords.length;
+                                index++
+                              )
+                                _buildAnimatedWord(
+                                  index,
+                                  theme,
+                                  constraints.maxWidth,
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.medium),
-                    AnimatedBuilder(
-                      animation: _accentReveal,
-                      builder: (context, child) => Opacity(
-                        opacity: _accentReveal.value,
-                        child: SizedBox(
-                          width: 68 * _accentReveal.value,
-                          height: 2,
-                          child: child,
+                      const SizedBox(height: AppSpacing.medium),
+                      AnimatedBuilder(
+                        animation: _accentReveal,
+                        builder: (context, child) => Opacity(
+                          opacity: _accentReveal.value,
+                          child: SizedBox(
+                            width: 68 * _accentReveal.value,
+                            height: 2,
+                            child: child,
+                          ),
+                        ),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            borderRadius: BorderRadius.circular(1),
+                          ),
                         ),
                       ),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

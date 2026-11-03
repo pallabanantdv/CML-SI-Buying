@@ -13,7 +13,7 @@ import '../storage/preferences_service.dart';
 import '../storage/secure_storage_service.dart';
 import '../../features/auth/repositories/auth_repository.dart';
 import '../../features/auth/viewmodels/auth_viewmodel.dart';
-import '../../features/dashboard/repositories/dashboard_repository.dart';
+import '../../features/dashboard/repositories/static_dashboard_repository.dart';
 import '../../features/dashboard/viewmodels/dashboard_viewmodel.dart';
 import '../../features/point_of_purchase/repositories/point_of_purchase_repository.dart';
 import '../../features/point_of_purchase/viewmodels/point_of_purchase_viewmodel.dart';
@@ -57,7 +57,7 @@ abstract final class DependencyInjection {
     auth = AuthViewModel(authRepository);
     return AppDependencies(
       auth: auth,
-      dashboard: DashboardViewModel(const DashboardRepository()),
+      dashboard: DashboardViewModel(const StaticDashboardRepository()),
       pointOfPurchase: PointOfPurchaseViewModel(
         PointOfPurchaseRepository(resources),
       ),

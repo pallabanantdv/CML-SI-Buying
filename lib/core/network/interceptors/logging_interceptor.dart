@@ -1,31 +1,106 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
-/// Logs HTTP request and response details in debug builds, with credentials
-/// masked before anything is written to the console.
+import '../../diagnostics/app_diagnostics.dart';
+
+/// Fail-closed logging: unknown scalar values are private business data.
+/// Preserve payload structure and counts, never credentials or record values.
 class SafeLoggingInterceptor extends Interceptor {
-  static final _sensitiveKey = RegExp(
-    r'(password|passwd|pwd|token|secret|authorization|cookie|session|api[_-]?key)',
-    caseSensitive: false,
-  );
-  static final _sensitiveText = RegExp(
-    r'((?:password|passwd|pwd|access_token|refresh_token|token|secret|authorization|cookie)\s*[:=]\s*)([^\s,;&}]+)',
-    caseSensitive: false,
-  );
+  SafeLoggingInterceptor({void Function(String)? sink})
+    : _sink = sink ?? AppDiagnostics.write;
+  final void Function(String) _sink;
+  static int _sequence = 0;
+  static const _id = 'caml.log.id';
+  static const _clock = 'caml.log.clock';
+
+  static Object? sanitize(Object? value) {
+    if (value == null) return null;
+    if (value is Map) {
+      return {
+        for (final entry in value.entries)
+          entry.key.toString(): sanitize(entry.value),
+      };
+    }
+    if (value is FormData) {
+      return {
+        'fields': {for (final entry in value.fields) entry.key: '[REDACTED]'},
+        'files': '[REDACTED]',
+      };
+    }
+    if (value is List) return value.map(sanitize).toList();
+    if (value is String) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is Map || decoded is List) return sanitize(decoded);
+      } catch (_) {
+        /* Opaque text is private. */
+      }
+    }
+    return '[REDACTED]';
+  }
+
+  static String safeUrl(Uri uri) {
+    final segments = uri.pathSegments;
+    // Resource names and arbitrary method parameters can contain business data.
+    final path = segments
+        .asMap()
+        .entries
+        .map(
+          (entry) =>
+              entry.key >= 3 ? '[REDACTED]' : Uri.encodeComponent(entry.value),
+        )
+        .join('/');
+    final query = {
+      for (final key in uri.queryParameters.keys) key: '[REDACTED]',
+    };
+    return Uri(
+      scheme: uri.scheme,
+      host: uri.host,
+      port: uri.hasPort ? uri.port : null,
+      path: '/$path',
+      queryParameters: query.isEmpty ? null : query,
+    ).toString();
+  }
+
+  void _emit(
+    String event,
+    RequestOptions request,
+    Map<String, Object?> fields,
+  ) {
+    // A diagnostic sink must never change request completion or error handling.
+    try {
+      _sink(
+        jsonEncode({
+          'event': event,
+          'requestId': request.extra[_id],
+          'timestamp': DateTime.now().toUtc().toIso8601String(),
+          'method': request.method,
+          'url': safeUrl(request.uri),
+          'durationMs':
+              (request.extra[_clock] as Stopwatch?)?.elapsedMilliseconds,
+          ...fields,
+        }),
+      );
+    } catch (_) {
+      /* Logging failures must not affect networking. */
+    }
+  }
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    options.extra['safeHttpLogStart'] = DateTime.now().microsecondsSinceEpoch;
-    _debugLog(
-      [
-        '[HTTP] --> ${options.method} ${_urlWithoutQuery(options.uri)}',
-        'Query: ${_format(options.queryParameters)}',
-        'Headers: ${_format(options.headers)}',
-        'Payload: ${_format(options.data)}',
-      ].join('\n'),
-    );
+    options.extra[_id] = 'req-${++_sequence}';
+    options.extra[_clock] = Stopwatch()..start();
+    _emit('API REQUEST', options, {
+      'query': sanitize(options.queryParameters),
+      'headers': sanitize(options.headers),
+      'body': sanitize(options.data),
+      'timeoutsMs': {
+        'connect': options.connectTimeout?.inMilliseconds,
+        'send': options.sendTimeout?.inMilliseconds,
+        'receive': options.receiveTimeout?.inMilliseconds,
+      },
+    });
     handler.next(options);
   }
 
@@ -34,114 +109,27 @@ class SafeLoggingInterceptor extends Interceptor {
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) {
-    final duration = _requestDuration(response.requestOptions);
-    _debugLog(
-      [
-        '[HTTP] <-- ${response.statusCode} ${response.requestOptions.method} '
-            '${_urlWithoutQuery(response.requestOptions.uri)}'
-            '${duration == null ? '' : ' (${duration}ms)'}',
-        'Response headers: ${_format(response.headers.map)}',
-        'Response body: ${_format(response.data)}',
-      ].join('\n'),
-    );
+    _emit('API RESPONSE', response.requestOptions, {
+      'status': response.statusCode,
+      'headers': sanitize(response.headers.map),
+      'body': sanitize(response.data),
+    });
     handler.next(response);
   }
 
-  static void logError(DioException err) {
-    final request = err.requestOptions;
-    final duration = _requestDuration(request);
-    _debugLog(
-      [
-        '[HTTP] ERROR type=${err.type.name} '
-            'status=${err.response?.statusCode ?? 'none'} '
-            '${request.method} ${_urlWithoutQuery(request.uri)}'
-            '${duration == null ? '' : ' (${duration}ms)'}',
-        'Query: ${_format(request.queryParameters)}',
-        'Payload: ${_format(request.data)}',
-        if (err.response != null)
-          'Error response: ${_format(err.response?.data)}',
-        'Error message: ${_redactText(err.message ?? err.type.name)}',
-        if (err.error != null) 'Underlying error: ${_format(err.error)}',
-      ].join('\n'),
-    );
-  }
-
-  static String _urlWithoutQuery(Uri uri) {
-    final port = uri.hasPort ? ':${uri.port}' : '';
-    return '${uri.scheme}://${uri.host}$port${uri.path}';
-  }
-
-  static int? _requestDuration(RequestOptions options) {
-    final startedAt = options.extra['safeHttpLogStart'];
-    if (startedAt is! int) return null;
-    return (DateTime.now().microsecondsSinceEpoch - startedAt) ~/ 1000;
-  }
-
-  static String _format(Object? value) {
-    final safeValue = _sanitize(value);
-    try {
-      return const JsonEncoder.withIndent('  ').convert(safeValue);
-    } catch (_) {
-      return _redactText(safeValue.toString());
-    }
-  }
-
-  static Object? _sanitize(Object? value) {
-    if (value is FormData) {
-      return {
-        'fields': {
-          for (final field in value.fields)
-            field.key: _sanitizeField(field.key, field.value),
-        },
-        'files': [
-          for (final file in value.files)
-            _sensitiveKey.hasMatch(file.key)
-                ? {'field': file.key, 'file': '<redacted>'}
-                : {
-                    'field': file.key,
-                    'fileName': file.value.filename,
-                    'contentType': file.value.contentType?.mimeType,
-                    'length': file.value.length,
-                  },
-        ],
-      };
-    }
-    if (value is Map) {
-      return {
-        for (final entry in value.entries)
-          entry.key.toString(): _sanitizeField(
-            entry.key.toString(),
-            entry.value,
-          ),
-      };
-    }
-    if (value is List<int>) return '<binary payload: ${value.length} bytes>';
-    if (value is Iterable && value is! String) {
-      return value.map(_sanitize).toList();
-    }
-    if (value is String) {
-      try {
-        final decoded = jsonDecode(value);
-        if (decoded is Map || decoded is List) return _sanitize(decoded);
-      } catch (_) {}
-      return _redactText(value);
-    }
-    if (value is ResponseBody) return '<stream response>';
-    return value;
-  }
-
-  static Object? _sanitizeField(String key, Object? value) =>
-      _sensitiveKey.hasMatch(key) ? '<redacted>' : _sanitize(value);
-
-  static String _redactText(String value) => value.replaceAllMapped(
-    _sensitiveText,
-    (match) => '${match[1]}<redacted>',
-  );
-
-  static void _debugLog(String message) {
-    assert(() {
-      debugPrint(message);
-      return true;
-    }());
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    _emit('API ERROR', err.requestOptions, {
+      'type': err.type.name, 'status': err.response?.statusCode,
+      'message': sanitize(err.message), 'body': sanitize(err.response?.data),
+      // Stack frames contain source locations; exception messages are omitted.
+      'stack': err.stackTrace
+          .toString()
+          .split('\n')
+          .where((line) => line.startsWith('#'))
+          .take(20)
+          .toList(),
+    });
+    handler.next(err);
   }
 }

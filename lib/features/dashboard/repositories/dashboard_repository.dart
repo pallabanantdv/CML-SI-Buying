@@ -1,6 +1,5 @@
-/// Data access layer reserved for dashboard requirements.
-///
-/// No backend calls are made until dashboard data is specified.
-class DashboardRepository {
-  const DashboardRepository();
+import '../models/dashboard_data.dart';
+
+abstract interface class DashboardRepository {
+  Future<DashboardData> getDashboardData();
 }

@@ -1,25 +1,24 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../../config/constants/app_constants.dart';
 import '../../../config/routes/route_names.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
-import '../../../config/theme/theme_provider.dart';
+
 import '../../../features/auth/viewmodels/auth_viewmodel.dart';
 import '../../../shared/widgets/app_app_bar.dart';
-import '../../../shared/widgets/app_button.dart';
+
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/app_info_row.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_loader.dart';
-import '../../../shared/widgets/app_page_banner.dart';
+import '../../../shared/widgets/app_expandable_section.dart';
 import '../../../shared/widgets/app_status_badge.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../models/profile_model.dart';
@@ -56,64 +55,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) => Consumer<ProfileViewModel>(
     builder: (context, profile, _) => Scaffold(
       appBar: const AppAppBar(title: AppHeaderTitle(title: 'Profile')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: AppDimensions.profileContentMaxWidth,
-          ),
-          child: ListView(
-            padding: const EdgeInsets.all(AppDimensions.pageGutter),
-            children: [
-              const AppPageBanner(
-                eyebrow: 'Account settings',
-                title: 'Your profile',
-                description: 'Review your account details and app preferences.',
-                icon: AppIconName.profile,
-              ),
-              const SizedBox(height: AppSpacing.large),
-              _profileCard(context, profile),
-              const SizedBox(height: AppSpacing.large),
-              AppCard(
-                tone: AppCardTone.info,
-                showAccentBar: true,
-                title: 'Appearance',
-                subtitle: 'Choose how CML SI Buying looks on this device.',
-                leading: AppSvgIcon(
-                  icon: AppIconName.contrast,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                child: const _ThemeModeChips(),
-              ),
-              const SizedBox(height: AppSpacing.large),
-              if (!AppConstants.bypassLoginForModulePreview)
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppDimensions.profileContentMaxWidth,
+            ),
+            child: ListView(
+              padding: const EdgeInsets.all(AppDimensions.pageGutter),
+              children: [
+                _profileCard(context, profile),
+                const SizedBox(height: AppSpacing.sectionGap),
                 AppCard(
-                  tone: AppCardTone.warning,
-                  showAccentBar: true,
-                  title: 'Session',
-                  subtitle: 'Sign out of your current account on this device.',
+                  title: 'Settings',
+                  subtitle: 'Appearance, account and app information',
                   leading: AppSvgIcon(
-                    icon: AppIconName.lock,
+                    icon: AppIconName.settings,
                     color: Theme.of(context).colorScheme.primary,
                   ),
-                  child: AppButton(
-                    label: 'Sign out',
-                    icon: AppIconName.logout,
-                    variant: AppButtonVariant.danger,
-                    onPressed: () => context.read<AuthViewModel>().logout(),
-                  ),
+                  onTap: () => context.pushNamed(RouteNames.settings),
                 ),
-              if (kDebugMode)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: AppButton(
-                    label: 'Open component showcase',
-                    variant: AppButtonVariant.text,
-                    icon: AppIconName.tune,
-                    expand: false,
-                    onPressed: () => context.goNamed(RouteNames.designSystem),
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -124,18 +88,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (state.isLoading) {
       return const AppCard(
         tone: AppCardTone.info,
-        showAccentBar: true,
+        showAccentBar: false,
         title: 'Account information',
-        child: SizedBox(
-          height: 120,
-          child: AppLoader(label: 'Loading profile...'),
-        ),
+        child: AppLoader(label: 'Loading profile...'),
       );
     }
     if (state.errorMessage != null) {
       return AppCard(
         tone: AppCardTone.error,
-        showAccentBar: true,
+        showAccentBar: false,
         title: 'Account information',
         child: AppErrorWidget(
           message: state.errorMessage!,
@@ -150,7 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (profile == null) {
       return const AppCard(
         tone: AppCardTone.warning,
-        showAccentBar: true,
+        showAccentBar: false,
         title: 'Account information',
         child: AppEmptyState(
           icon: AppIconName.person,
@@ -180,10 +141,8 @@ class _UserProfileCard extends StatelessWidget {
         .map((word) => word[0].toUpperCase())
         .join();
     const displayedFields = [
-      ('email', 'Email'),
       ('username', 'Username'),
       ('user_type', 'Account type'),
-      ('enabled', 'Account status'),
       ('language', 'Language'),
       ('time_zone', 'Time zone'),
       ('creation', 'Created'),
@@ -203,113 +162,83 @@ class _UserProfileCard extends StatelessWidget {
         enabledValue == 'true' ||
         enabledValue == 'enabled';
 
-    return AppCard(
-      tone: AppCardTone.primary,
-      showAccentBar: true,
-      title: 'Account information',
-      leading: AppSvgIcon(
-        icon: AppIconName.person,
-        color: theme.colorScheme.primary,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.28),
-                    width: 2,
-                  ),
-                ),
-                child: Text(
-                  initials.isEmpty ? '?' : initials,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.standard),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      profile.fullName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleLarge,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: theme.colorScheme.secondaryContainer,
+                    child: Text(
+                      initials.isEmpty ? '?' : initials,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.onSecondaryContainer,
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.xSmall),
-                    Text(
-                      profile.email,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          profile.fullName,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 2),
+                        SelectableText(
+                          profile.email,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (fields.containsKey('enabled')) ...[
+                    const SizedBox(height: AppSpacing.relatedGap),
+                    AppStatusBadge(
+                      label: isEnabled ? 'Enabled' : 'Disabled',
+                      color: isEnabled
+                          ? context.appColors.success
+                          : context.appColors.error,
                     ),
                   ],
-                ),
+                ],
               ),
-              if (fields.containsKey('enabled')) ...[
-                const SizedBox(width: AppSpacing.small),
-                AppStatusBadge(
-                  label: isEnabled ? 'Enabled' : 'Disabled',
-                  color: isEnabled
-                      ? context.appColors.success
-                      : context.appColors.error,
-                ),
-              ],
             ],
           ),
-          if (visibleFields.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.large),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                const spacing = AppSpacing.small;
-                final columns = constraints.maxWidth >= 560 ? 2 : 1;
-                final itemWidth = columns == 2
-                    ? (constraints.maxWidth - spacing) / 2
-                    : constraints.maxWidth;
-                return Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  children: [
-                    for (var index = 0; index < visibleFields.length; index++)
-                      SizedBox(
-                        width: itemWidth,
-                        child: _ProfileDetailRow(
-                          label: visibleFields[index].$2,
-                          value: visibleFields[index].$1 == 'enabled'
-                              ? (isEnabled ? 'Enabled' : 'Disabled')
-                              : '${fields[visibleFields[index].$1]}',
-                          icon: _profileFieldIcon(visibleFields[index].$1),
-                          accent: visibleFields[index].$1 == 'enabled'
-                              ? (isEnabled
-                                    ? context.appColors.success
-                                    : context.appColors.error)
-                              : index.isEven
-                              ? theme.colorScheme.primary
-                              : context.appColors.info,
-                        ),
-                      ),
-                  ],
-                );
-              },
+        ),
+        if (visibleFields.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.cardGap),
+          AppExpandableSection(
+            title: 'Account information',
+            initiallyExpanded: true,
+            child: Column(
+              children: [
+                for (final field in visibleFields)
+                  _ProfileDetailRow(
+                    label: field.$2,
+                    value: field.$1 == 'enabled'
+                        ? (isEnabled ? 'Enabled' : 'Disabled')
+                        : '${fields[field.$1]}',
+                    icon: _profileFieldIcon(field.$1),
+                    accent: theme.colorScheme.primary,
+                  ),
+              ],
             ),
-          ],
-          if (profile.roles.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.standard),
-            _ProfileRoles(roles: profile.roles),
-          ],
+          ),
         ],
-      ),
+        if (profile.roles.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.cardGap),
+          AppCard(child: _ProfileRoles(roles: profile.roles)),
+        ],
+      ],
     );
   }
 }
@@ -339,16 +268,17 @@ class _ProfileRolesState extends State<_ProfileRoles> {
         const SizedBox(height: AppSpacing.small),
         Wrap(
           spacing: AppSpacing.small,
-          runSpacing: AppSpacing.small,
+          runSpacing: AppSpacing.relatedGap,
           children: [
             for (final role in roles)
               Chip(
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 avatar: AppSvgIcon(
                   icon: AppIconName.badge,
                   size: 15,
                   color: Theme.of(context).colorScheme.primary,
                 ),
-                label: Text(role),
+                label: Text(role, maxLines: 2, overflow: TextOverflow.ellipsis),
                 backgroundColor: Theme.of(context).colorScheme.primaryContainer
                     .withValues(alpha: 0.55),
                 labelStyle: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -389,47 +319,15 @@ class _ProfileDetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      constraints: const BoxConstraints(minHeight: 68),
-      padding: const EdgeInsets.all(AppSpacing.small),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.08),
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.13),
-              borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
-            ),
-            child: AppSvgIcon(icon: icon, size: 17, color: accent),
-          ),
-          const SizedBox(width: AppSpacing.small),
+          AppSvgIcon(icon: icon, size: 18, color: accent),
+          const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: theme.textTheme.labelSmall),
-                const SizedBox(height: AppSpacing.xSmall),
-                Text(
-                  value,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+            child: AppInfoRow(label: label, value: value, selectable: true),
           ),
         ],
       ),
@@ -445,77 +343,3 @@ AppIconName _profileFieldIcon(String field) => switch (field) {
   'language' || 'time_zone' => AppIconName.settings,
   _ => AppIconName.info,
 };
-
-class _ThemeModeChips extends StatelessWidget {
-  const _ThemeModeChips();
-
-  @override
-  Widget build(BuildContext context) => Consumer<ThemeProvider>(
-    builder: (context, theme, _) => Wrap(
-      spacing: AppSpacing.small,
-      runSpacing: AppSpacing.small,
-      children: [
-        _ThemeModeChip(
-          label: 'System',
-          icon: AppIconName.settings,
-          mode: ThemeMode.system,
-          selected: theme.themeMode,
-          onSelected: theme.setThemeMode,
-        ),
-        _ThemeModeChip(
-          label: 'Light',
-          icon: AppIconName.lightMode,
-          mode: ThemeMode.light,
-          selected: theme.themeMode,
-          onSelected: theme.setThemeMode,
-        ),
-        _ThemeModeChip(
-          label: 'Dark',
-          icon: AppIconName.darkMode,
-          mode: ThemeMode.dark,
-          selected: theme.themeMode,
-          onSelected: theme.setThemeMode,
-        ),
-      ],
-    ),
-  );
-}
-
-class _ThemeModeChip extends StatelessWidget {
-  const _ThemeModeChip({
-    required this.label,
-    required this.icon,
-    required this.mode,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final String label;
-  final AppIconName icon;
-  final ThemeMode mode;
-  final ThemeMode selected;
-  final Future<void> Function(ThemeMode) onSelected;
-
-  @override
-  Widget build(BuildContext context) => ChoiceChip(
-    avatar: AppSvgIcon(
-      icon: icon,
-      size: 16,
-      color: mode == selected
-          ? Theme.of(context).colorScheme.onSecondaryContainer
-          : Theme.of(context).colorScheme.onSurfaceVariant,
-    ),
-    label: Text(label),
-    selected: mode == selected,
-    selectedColor: Theme.of(context).colorScheme.secondaryContainer
-        .withValues(alpha: 0.7),
-    side: BorderSide(
-      color: mode == selected
-          ? Theme.of(context).colorScheme.secondary
-          : Theme.of(context).colorScheme.outlineVariant,
-    ),
-    onSelected: (value) {
-      if (value) unawaited(onSelected(mode));
-    },
-  );
-}

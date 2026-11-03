@@ -10,10 +10,13 @@ class AppStatusBadge extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: MediaQuery.of(context).disableAnimations
+        ? Duration.zero
+        : const Duration(milliseconds: 160),
     padding: const EdgeInsets.symmetric(
       horizontal: AppSpacing.small,
-      vertical: AppSpacing.xSmall,
+      vertical: 2,
     ),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.1),

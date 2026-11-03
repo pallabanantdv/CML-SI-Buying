@@ -16,19 +16,27 @@ abstract final class AppTheme {
           seedColor: AppColors.primary,
           brightness: brightness,
         ).copyWith(
-          primary: AppColors.primary,
-          onPrimary: AppColors.surface,
-          primaryContainer: AppColors.highlight,
-          onPrimaryContainer: AppColors.primaryDark,
+          primary: isLight ? AppColors.primary : AppColors.highlight,
+          onPrimary: isLight ? AppColors.surface : AppColors.darkCanvas,
+          primaryContainer: isLight
+              ? AppColors.highlight
+              : AppColors.primaryDark,
+          onPrimaryContainer: isLight
+              ? AppColors.primaryDark
+              : AppColors.darkTextPrimary,
           secondary: AppColors.secondary,
-          onSecondary: AppColors.surface,
-          secondaryContainer: AppColors.accent,
-          onSecondaryContainer: AppColors.textPrimary,
+          onSecondary: AppColors.darkCanvas,
+          secondaryContainer: isLight
+              ? AppColors.highlight.withValues(alpha: 0.35)
+              : AppColors.primaryDark,
+          onSecondaryContainer: isLight
+              ? AppColors.primaryDark
+              : AppColors.darkTextPrimary,
           tertiary: AppColors.highlight,
           onTertiary: AppColors.primaryDark,
           tertiaryContainer: AppColors.accent,
           onTertiaryContainer: AppColors.textPrimary,
-          error: AppColors.error,
+          error: isLight ? AppColors.error : AppColors.darkError,
           surface: isLight ? AppColors.surface : AppColors.darkSurface,
           onSurface: isLight
               ? AppColors.textPrimary
@@ -54,10 +62,10 @@ abstract final class AppTheme {
           : AppColors.darkCanvas,
       extensions: [
         AppSemanticColors(
-          success: AppColors.success,
-          warning: AppColors.warning,
-          info: AppColors.info,
-          error: AppColors.error,
+          success: isLight ? AppColors.success : AppColors.darkSuccess,
+          warning: isLight ? AppColors.warning : AppColors.darkWarning,
+          info: isLight ? AppColors.info : AppColors.darkInfo,
+          error: isLight ? AppColors.error : AppColors.darkError,
           border: borderColor,
           textSecondary: textSecondary,
         ),
@@ -70,7 +78,7 @@ abstract final class AppTheme {
         constraints: const BoxConstraints(minHeight: AppDimensions.fieldHeight),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.medium,
-          vertical: AppSpacing.medium,
+          vertical: 10,
         ),
         labelStyle: textTheme.labelMedium?.copyWith(color: textSecondary),
         hintStyle: textTheme.bodyMedium?.copyWith(color: textSecondary),
@@ -84,19 +92,19 @@ abstract final class AppTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppDimensions.fieldRadius),
-          borderSide: const BorderSide(color: AppColors.error),
+          borderSide: BorderSide(color: scheme.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppDimensions.fieldRadius),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+          borderSide: BorderSide(color: scheme.error, width: 1.5),
         ),
         disabledBorder: outline,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: _buttonStyle(
           textStyle: textTheme.labelLarge!,
-          background: AppColors.primary,
-          foreground: AppColors.surface,
+          background: scheme.primary,
+          foreground: scheme.onPrimary,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -114,7 +122,7 @@ abstract final class AppTheme {
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 48),
           tapTargetSize: MaterialTapTargetSize.padded,
         ),
       ),
@@ -136,7 +144,7 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: AppTextStyles.appBarTitle(brightness),
-        shape: Border(bottom: BorderSide(color: borderColor)),
+        toolbarHeight: 56,
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,

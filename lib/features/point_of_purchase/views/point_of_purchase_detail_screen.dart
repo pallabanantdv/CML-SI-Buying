@@ -3,16 +3,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/diagnostics/app_diagnostics.dart';
+
 import '../../../config/theme/app_colors.dart';
+import '../../../core/utils/number_format.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
 import '../../../shared/widgets/app_app_bar.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/app_card_heading.dart';
+import '../../../shared/widgets/app_info_row.dart';
 import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_loader.dart';
-import '../../../shared/widgets/app_page_banner.dart';
-import '../../../shared/widgets/app_svg_icon.dart';
+import '../../../shared/widgets/app_expandable_section.dart';
 import '../../../shared/widgets/app_status_badge.dart';
 import '../viewmodels/point_of_purchase_viewmodel.dart';
 
@@ -31,35 +35,40 @@ class _PointOfPurchaseDetailScreenState
   @override
   void initState() {
     super.initState();
-    unawaited(
-      context.read<PointOfPurchaseViewModel>().loadPointOfPurchase(
-        widget.documentName,
-      ),
-    );
+    AppDiagnostics.write('[$runtimeType] initState');
+    _scheduleLoad();
   }
 
-  @override
-  void didUpdateWidget(covariant PointOfPurchaseDetailScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.documentName != widget.documentName) {
+  void _scheduleLoad() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       unawaited(
         context.read<PointOfPurchaseViewModel>().loadPointOfPurchase(
           widget.documentName,
         ),
       );
-    }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant PointOfPurchaseDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.documentName != widget.documentName) _scheduleLoad();
   }
 
   @override
   Widget build(BuildContext context) => Consumer<PointOfPurchaseViewModel>(
     builder: (context, viewModel, _) => Scaffold(
       appBar: const AppAppBar(title: AppHeaderTitle(title: 'Purchase details')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: AppDimensions.detailContentMaxWidth,
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppDimensions.detailContentMaxWidth,
+            ),
+            child: _buildContent(context, viewModel),
           ),
-          child: _buildContent(context, viewModel),
         ),
       ),
     ),
@@ -69,6 +78,11 @@ class _PointOfPurchaseDetailScreenState
     BuildContext context,
     PointOfPurchaseViewModel viewModel,
   ) {
+    if (AppDiagnostics.enabled) {
+      AppDiagnostics.write(
+        '[$runtimeType] render loading=${viewModel.isLoadingDetail} error=${viewModel.detailErrorMessage != null}',
+      );
+    }
     if (viewModel.isLoadingDetail ||
         viewModel.selectedName != widget.documentName) {
       return const AppLoader(label: 'Loading purchase details...');
@@ -108,35 +122,42 @@ class _PointOfPurchaseDetailScreenState
     return ListView(
       padding: const EdgeInsets.all(AppDimensions.pageGutter),
       children: [
-        AppPageBanner(
-          eyebrow: 'Purchase record',
-          title: _text(record['name']) ?? 'Purchase details',
-          description: 'Supplier, delivery, payment, and item information.',
-          icon: AppIconName.purchase,
-          badge: switch (int.tryParse(record['docstatus']?.toString() ?? '')) {
-            1 => 'Submitted',
-            2 => 'Cancelled',
-            _ => 'Draft',
-          },
-        ),
-
-        const SizedBox(height: AppSpacing.standard),
         _OverviewCard(record: record),
-        const SizedBox(height: AppSpacing.standard),
-        for (final section in _detailSections) ...[
-          _DetailSection(record: record, title: section.$1, fields: section.$2),
-          const SizedBox(height: AppSpacing.standard),
-        ],
+        const SizedBox(height: AppSpacing.sectionGap),
+        for (final section in _detailSections)
+          if (section.$2.any((field) => _text(record[field]) != null)) ...[
+            _DetailSection(
+              record: record,
+              title: section.$1,
+              fields: section.$2,
+              collapsible: const [
+                'Accounting and references',
+                'Record metadata',
+              ].contains(section.$1),
+            ),
+            const SizedBox(height: AppSpacing.sectionGap),
+          ],
         if (scalarFields.isNotEmpty) ...[
-          _DynamicDetailSection(
+          AppExpandableSection(
             title: 'Additional record details',
-            fields: scalarFields,
+            child: _DynamicDetailSection(
+              title: 'Record fields',
+              fields: scalarFields,
+            ),
           ),
-          const SizedBox(height: AppSpacing.standard),
+          const SizedBox(height: AppSpacing.sectionGap),
         ],
         for (final table in childTables) ...[
-          _ChildTableSection(name: table.key, rows: table.value as List),
-          const SizedBox(height: AppSpacing.standard),
+          AppExpandableSection(
+            title:
+                '${_tableTitle(table.key)} (${(table.value as List).length})',
+            initiallyExpanded: table.key == 'supplier_pop_item',
+            child: _ChildTableSection(
+              name: table.key,
+              rows: table.value as List,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sectionGap),
         ],
       ],
     );
@@ -145,60 +166,51 @@ class _PointOfPurchaseDetailScreenState
 
 class _DynamicDetailSection extends StatelessWidget {
   const _DynamicDetailSection({required this.title, required this.fields});
-
   final String title;
   final List<MapEntry<String, dynamic>> fields;
-
   @override
-  Widget build(BuildContext context) => AppCard(
-    title: title,
-    tone: AppCardTone.info,
-    showAccentBar: true,
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var index = 0; index < fields.length; index++) ...[
-          if (index > 0) const SizedBox(height: AppSpacing.medium),
-          _DetailRow(
-            label: _labels[fields[index].key] ?? _humanize(fields[index].key),
-            value: _displayValue(fields[index].value),
-          ),
-        ],
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (var index = 0; index < fields.length; index++) ...[
+        if (index > 0) const SizedBox(height: AppSpacing.cardGap),
+        _DetailRow(
+          label: _labels[fields[index].key] ?? _humanize(fields[index].key),
+          value: _displayValue(fields[index].value),
+        ),
       ],
-    ),
+    ],
   );
 }
 
+String _tableTitle(String name) => switch (name) {
+  'supplier_pop_item' => 'Purchase items',
+  'total_bag' => 'Bags and weight',
+  'supplier_advance_allocation' => 'Advance allocations',
+  'pop_cash_payment' => 'Cash payments',
+  _ => _humanize(name),
+};
+
 class _ChildTableSection extends StatelessWidget {
   const _ChildTableSection({required this.name, required this.rows});
-
   final String name;
   final List rows;
-
   @override
-  Widget build(BuildContext context) => AppCard(
-    title: _humanize(name),
-    subtitle: '${rows.length} ${rows.length == 1 ? 'row' : 'rows'}',
-    tone: AppCardTone.success,
-    showAccentBar: true,
-    child: rows.isEmpty
-        ? Text('No rows', style: Theme.of(context).textTheme.bodySmall)
-        : Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var index = 0; index < rows.length; index++) ...[
-                if (index > 0) ...[
-                  const SizedBox(height: AppSpacing.medium),
-                  const Divider(height: 1),
-                  const SizedBox(height: AppSpacing.medium),
-                ],
-                _ChildTableRow(row: rows[index], index: index),
+  Widget build(BuildContext context) => rows.isEmpty
+      ? Text('No rows', style: Theme.of(context).textTheme.bodySmall)
+      : Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < rows.length; index++) ...[
+              if (index > 0) ...[
+                const SizedBox(height: AppSpacing.cardGap),
+                const Divider(),
+                const SizedBox(height: AppSpacing.cardGap),
               ],
+              _ChildTableRow(row: rows[index], index: index),
             ],
-          ),
-  );
+          ],
+        );
 }
 
 class _ChildTableRow extends StatelessWidget {
@@ -229,7 +241,7 @@ class _ChildTableRow extends StatelessWidget {
           _displayValue(titleEntry.value),
           style: Theme.of(context).textTheme.titleSmall,
         ),
-        const SizedBox(height: AppSpacing.medium),
+        const SizedBox(height: AppSpacing.small),
         for (final entry in entries) ...[
           if (entry.key != titleEntry.key) ...[
             _DetailRow(
@@ -271,82 +283,31 @@ class _OverviewCard extends StatelessWidget {
     };
 
     return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.large),
-      tone: docStatus == 1
-          ? AppCardTone.success
-          : docStatus == 2
-          ? AppCardTone.error
-          : AppCardTone.warning,
-      showAccentBar: true,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-                ),
-                child: AppSvgIcon(
-                  icon: AppIconName.purchase,
-                  size: 24,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.medium),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      supplier,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.xSmall),
-                    Text(name, style: theme.textTheme.bodySmall),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.small),
-              AppStatusBadge(label: statusLabel, color: statusColor),
-            ],
+          AppCardHeading(
+            title: name,
+            trailing: AppStatusBadge(label: statusLabel, color: statusColor),
           ),
+          const SizedBox(height: 4),
+          Text(supplier, style: theme.textTheme.bodyMedium),
           if (netPayable != null) ...[
-            const SizedBox(height: AppSpacing.standard),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.medium,
-                vertical: AppSpacing.standard,
-              ),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondaryContainer.withValues(
-                  alpha: 0.6,
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('Net payable', style: theme.textTheme.bodySmall),
+                Text(
+                  _formatValue('net_payable', netPayable),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Net payable',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ),
-                  Text(
-                    _formatValue('net_payable', netPayable),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: theme.colorScheme.onSecondaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
           ],
         ],
@@ -360,8 +321,10 @@ class _DetailSection extends StatelessWidget {
     required this.record,
     required this.title,
     required this.fields,
+    this.collapsible = false,
   });
 
+  final bool collapsible;
   final Map<String, dynamic> record;
   final String title;
   final List<String> fields;
@@ -374,29 +337,17 @@ class _DetailSection extends StatelessWidget {
     ];
     if (visibleFields.isEmpty) return const SizedBox.shrink();
 
-    return AppCard(
-      title: title,
-      tone: AppCardTone.primary,
-      showAccentBar: true,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (var index = 0; index < visibleFields.length; index++) ...[
-            if (index > 0) const SizedBox(height: AppSpacing.medium),
-            _DetailRow(
-              label:
-                  _labels[visibleFields[index]] ??
-                  _humanize(visibleFields[index]),
-              value: _formatValue(
-                visibleFields[index],
-                record[visibleFields[index]],
-              ),
-            ),
-          ],
-        ],
-      ),
+    final content = AppInfoGrid(
+      fields: [
+        for (final field in visibleFields)
+          (
+            _labels[field] ?? _humanize(field),
+            _formatValue(field, record[field]),
+          ),
+      ],
     );
+    if (collapsible) return AppExpandableSection(title: title, child: content);
+    return AppCard(title: title, child: content);
   }
 }
 
@@ -407,39 +358,7 @@ class _DetailRow extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final theme = Theme.of(context);
-      if (constraints.maxWidth < AppDimensions.detailRowStackBreakpoint) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: theme.textTheme.bodySmall),
-            const SizedBox(height: AppSpacing.xSmall),
-            Text(value, style: theme.textTheme.bodyMedium),
-          ],
-        );
-      }
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(label, style: theme.textTheme.bodySmall),
-          ),
-          const SizedBox(width: AppSpacing.medium),
-          Expanded(
-            flex: 3,
-            child: Text(
-              value,
-              textAlign: TextAlign.end,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
-        ],
-      );
-    },
-  );
+  Widget build(BuildContext context) => AppInfoRow(label: label, value: value);
 }
 
 const _detailSections = <(String, List<String>)>[
@@ -477,7 +396,7 @@ const _detailSections = <(String, List<String>)>[
     ],
   ),
   (
-    'Payment and deductions',
+    'Financial totals',
     [
       'mode_of_payment',
       'payment_amount',
@@ -595,7 +514,7 @@ String _formatValue(String key, dynamic value) {
           key == 'rate' ||
           key == 'gross_weight' ||
           key == 'net_qty')) {
-    return number.toStringAsFixed(2);
+    return AppNumberFormat.amount(number);
   }
   return value.toString();
 }

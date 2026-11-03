@@ -8,6 +8,7 @@ abstract final class RouteNames {
   static const addSupplier = 'add-supplier';
   static const createSupplier = 'create-supplier';
   static const profile = 'profile';
+  static const settings = 'settings';
   static const designSystem = 'design-system';
 }
 
@@ -19,5 +20,6 @@ abstract final class RoutePaths {
   static const createPointOfPurchase = '/create-point-of-purchase';
   static const addSupplier = '/add-supplier';
   static const profile = '/profile';
+  static const settings = '/profile/settings';
   static const designSystem = '/design-system';
 }

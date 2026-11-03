@@ -17,9 +17,19 @@ class CmlSiBuyingApp extends StatefulWidget {
 
 class _CmlSiBuyingAppState extends State<CmlSiBuyingApp> {
   late final GoRouter _router = createAppRouter(widget.dependencies.auth);
+  String? _purchaseSession;
+  void _onSessionChanged() {
+    final auth = widget.dependencies.auth;
+    final session = auth.isAuthenticated ? auth.user?.id : null;
+    if (session == _purchaseSession) return;
+    _purchaseSession = session;
+    widget.dependencies.pointOfPurchase.resetSession();
+  }
+
   @override
   void initState() {
     super.initState();
+    widget.dependencies.auth.addListener(_onSessionChanged);
     if (!AppConstants.bypassLoginForModulePreview) {
       widget.dependencies.auth.restoreSession();
     }
@@ -27,6 +37,7 @@ class _CmlSiBuyingAppState extends State<CmlSiBuyingApp> {
 
   @override
   void dispose() {
+    widget.dependencies.auth.removeListener(_onSessionChanged);
     _router.dispose();
     super.dispose();
   }

@@ -5,10 +5,10 @@ import 'package:provider/provider.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
 import '../../../shared/widgets/app_app_bar.dart';
-import '../../../shared/widgets/app_button.dart';
+import '../../../shared/widgets/app_form_action_bar.dart';
+import '../../../shared/widgets/app_snackbar.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_header_title.dart';
-import '../../../shared/widgets/app_page_banner.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../../../shared/widgets/app_text_field.dart';
 import '../viewmodels/supplier_viewmodel.dart';
@@ -67,187 +67,187 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: const AppAppBar(title: AppHeaderTitle(title: 'Add supplier')),
+    bottomNavigationBar: Consumer<SupplierViewModel>(
+      builder: (context, vm, _) => AppFormActionBar(
+        label: 'Save supplier',
+        isLoading: vm.isSaving,
+        onPressed: vm.isSaving ? null : _submit,
+      ),
+    ),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: AppDimensions.formMaxWidth),
         child: Form(
           key: _formKey,
-          child: ListView(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.all(AppDimensions.pageGutter),
-            children: [
-              AppPageBanner(
-                eyebrow: 'Supplier setup',
-                title: 'Create a supplier',
-                description:
-                    'Add the profile, location, and contact information.',
-                icon: AppIconName.add,
-              ),
-              const SizedBox(height: AppSpacing.large),
-              AppCard(
-                tone: AppCardTone.primary,
-                showAccentBar: true,
-                title: 'Supplier details',
-                leading: AppSvgIcon(
-                  icon: AppIconName.supplier,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                child: Column(
-                  children: [
-                    _field(
-                      controller: _nameController,
-                      label: 'Supplier name',
-                      hint: 'Enter supplier or company name',
-                      required: true,
-                      validator: _required,
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: AppSpacing.standard),
-                    _field(
-                      controller: _groupController,
-                      label: 'Supplier group',
-                      hint: 'For example, Other',
-                      required: true,
-                      validator: _required,
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: AppSpacing.standard),
-                    DropdownButtonFormField<String>(
-                      initialValue: _supplierType,
-                      decoration: const InputDecoration(
-                        labelText: 'Supplier type',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppCard(
+                  tone: AppCardTone.primary,
+                  showAccentBar: false,
+                  title: 'Supplier details',
+                  leading: AppSvgIcon(
+                    icon: AppIconName.supplier,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  child: Column(
+                    children: [
+                      _field(
+                        controller: _nameController,
+                        label: 'Supplier name',
+                        hint: 'Enter supplier or company name',
+                        required: true,
+                        validator: _required,
+                        textInputAction: TextInputAction.next,
                       ),
-                      icon: AppSvgIcon(icon: AppIconName.expandMore, size: 18),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'Company',
-                          child: Text('Company'),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _groupController,
+                        label: 'Supplier group',
+                        hint: 'For example, Other',
+                        required: true,
+                        validator: _required,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      DropdownButtonFormField<String>(
+                        initialValue: _supplierType,
+                        decoration: const InputDecoration(
+                          labelText: 'Supplier type',
                         ),
-                        DropdownMenuItem(
-                          value: 'Individual',
-                          child: Text('Individual'),
+                        icon: AppSvgIcon(
+                          icon: AppIconName.expandMore,
+                          size: 18,
                         ),
-                      ],
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() => _supplierType = value);
-                          context.read<SupplierViewModel>().clearError();
-                        }
-                      },
-                    ),
-                  ],
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'Company',
+                            child: Text('Company'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'Individual',
+                            child: Text('Individual'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => _supplierType = value);
+                            context.read<SupplierViewModel>().clearError();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.standard),
-              AppCard(
-                tone: AppCardTone.info,
-                showAccentBar: true,
-                title: 'Location and contact',
-                leading: AppSvgIcon(
-                  icon: AppIconName.person,
-                  color: Theme.of(context).colorScheme.primary,
+                const SizedBox(height: AppSpacing.sectionGap),
+                AppCard(
+                  tone: AppCardTone.info,
+                  showAccentBar: false,
+                  title: 'Location and contact',
+                  leading: AppSvgIcon(
+                    icon: AppIconName.person,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  child: Column(
+                    children: [
+                      _field(
+                        controller: _countryController,
+                        label: 'Country',
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _provinceController,
+                        label: 'Province',
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _islandController,
+                        label: 'Island',
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _villageController,
+                        label: 'Village',
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _contactController,
+                        label: 'Contact number',
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _mobileController,
+                        label: 'Mobile number',
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _emailController,
+                        label: 'Email address',
+                        keyboardType: TextInputType.emailAddress,
+                        validator: _emailValidator,
+                        textInputAction: TextInputAction.done,
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    _field(
-                      controller: _countryController,
-                      label: 'Country',
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: AppSpacing.standard),
-                    _field(
-                      controller: _provinceController,
-                      label: 'Province',
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: AppSpacing.standard),
-                    _field(
-                      controller: _islandController,
-                      label: 'Island',
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: AppSpacing.standard),
-                    _field(
-                      controller: _villageController,
-                      label: 'Village',
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: AppSpacing.standard),
-                    _field(
-                      controller: _contactController,
-                      label: 'Contact number',
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: AppSpacing.standard),
-                    _field(
-                      controller: _mobileController,
-                      label: 'Mobile number',
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: AppSpacing.standard),
-                    _field(
-                      controller: _emailController,
-                      label: 'Email address',
-                      keyboardType: TextInputType.emailAddress,
-                      validator: _emailValidator,
-                      textInputAction: TextInputAction.done,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.standard),
-              Consumer<SupplierViewModel>(
-                builder: (context, viewModel, _) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (viewModel.errorMessage != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(AppSpacing.medium),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.errorContainer
-                              .withValues(alpha: 0.65),
-                          borderRadius: BorderRadius.circular(
-                            AppDimensions.badgeRadius,
+                const SizedBox(height: AppSpacing.sectionGap),
+                Consumer<SupplierViewModel>(
+                  builder: (context, viewModel, _) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (viewModel.errorMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(AppSpacing.medium),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.errorContainer
+                                .withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(
+                              AppDimensions.badgeRadius,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              AppSvgIcon(
+                                icon: AppIconName.info,
+                                size: 18,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onErrorContainer,
+                              ),
+                              const SizedBox(width: AppSpacing.small),
+                              Expanded(
+                                child: Text(
+                                  viewModel.errorMessage!,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onErrorContainer,
+                                      ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Row(
-                          children: [
-                            AppSvgIcon(
-                              icon: AppIconName.info,
-                              size: 18,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onErrorContainer,
-                            ),
-                            const SizedBox(width: AppSpacing.small),
-                            Expanded(
-                              child: Text(
-                                viewModel.errorMessage!,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onErrorContainer,
-                                    ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.small),
+                        const SizedBox(height: AppSpacing.small),
+                      ],
                     ],
-                    AppButton(
-                      label: 'Create supplier',
-                      icon: AppIconName.add,
-                      isLoading: viewModel.isSaving,
-                      onPressed: viewModel.isSaving ? null : _submit,
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.xLarge),
-            ],
+                const SizedBox(height: AppSpacing.sectionGap),
+              ],
+            ),
           ),
         ),
       ),
@@ -285,7 +285,7 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    if (!_formKey.currentState!.validate()) return;
+    if (!await validateAndReveal(_formKey) || !mounted) return;
 
     final fields = <String, dynamic>{
       'supplier_name': _nameController.text.trim(),
@@ -304,6 +304,16 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
     final created = await context.read<SupplierViewModel>().createSupplier(
       fields,
     );
-    if (created && mounted) context.pop(true);
+    if (!mounted) return;
+    if (created) {
+      context.pop(true);
+    } else {
+      AppSnackbar.show(
+        context,
+        context.read<SupplierViewModel>().errorMessage ??
+            'Unable to save supplier.',
+        type: AppMessageType.error,
+      );
+    }
   }
 }

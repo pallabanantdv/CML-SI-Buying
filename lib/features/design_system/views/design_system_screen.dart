@@ -9,6 +9,8 @@ import '../../../config/theme/theme_provider.dart';
 import '../../../shared/widgets/app_app_bar.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/app_summary_card.dart';
+import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/app_checkbox.dart';
 import '../../../shared/widgets/app_dialog.dart';
 import '../../../shared/widgets/app_dropdown.dart';
@@ -27,6 +29,7 @@ class DesignSystemScreen extends StatefulWidget {
 }
 
 class _DesignSystemScreenState extends State<DesignSystemScreen> {
+  final _searchController = TextEditingController();
   final _defaultController = TextEditingController();
   final _focusController = TextEditingController();
   final _errorController = TextEditingController();
@@ -40,6 +43,7 @@ class _DesignSystemScreenState extends State<DesignSystemScreen> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     _defaultController.dispose();
     _focusController.dispose();
     _errorController.dispose();
@@ -70,6 +74,25 @@ class _DesignSystemScreenState extends State<DesignSystemScreen> {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: AppSpacing.large),
+            _section(
+              context,
+              'Mobile components',
+              Column(
+                children: [
+                  AppSearchField(
+                    controller: _searchController,
+                    hint: 'Search records',
+                    onChanged: (_) {},
+                  ),
+                  const SizedBox(height: 16),
+                  const AppSummaryCard(
+                    label: 'Component preview',
+                    value: '\u2014',
+                    icon: AppIconName.purchase,
+                  ),
+                ],
+              ),
+            ),
             _section(
               context,
               'Typography',
@@ -371,10 +394,10 @@ class _DesignSystemScreenState extends State<DesignSystemScreen> {
   );
 
   Widget _section(BuildContext context, String title, Widget child) => Padding(
-    padding: const EdgeInsets.only(bottom: AppSpacing.large),
+    padding: const EdgeInsets.only(bottom: AppSpacing.sectionGap),
     child: AppCard(
       title: title,
-      padding: const EdgeInsets.all(AppSpacing.standard),
+      padding: const EdgeInsets.all(AppSpacing.cardPadding),
       child: child,
     ),
   );

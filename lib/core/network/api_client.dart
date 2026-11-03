@@ -35,6 +35,11 @@ class ApiClient {
     dynamic data,
     Map<String, dynamic>? queryParameters,
   }) async {
+    if (dio.options.baseUrl.isEmpty) {
+      throw const AppException(
+        'Server URL is missing. Build with --dart-define=FRAPPE_BASE_URL=https://your-server.',
+      );
+    }
     try {
       final response = await dio.request<dynamic>(
         path,

@@ -4,6 +4,7 @@ import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
 import '../../config/constants/app_constants.dart';
 import '../../config/environment/app_environment.dart';
+import '../diagnostics/app_diagnostics.dart';
 import 'interceptors/auth_interceptor.dart';
 import 'interceptors/error_interceptor.dart';
 import 'interceptors/logging_interceptor.dart';
@@ -27,13 +28,10 @@ class DioClient {
            ) {
     if (cookieJar != null) this.dio.interceptors.add(CookieManager(cookieJar));
     this.dio.interceptors.addAll([
+      if (AppDiagnostics.enabled) SafeLoggingInterceptor(),
       ErrorInterceptor(),
       AuthInterceptor(onUnauthorized: onUnauthorized),
     ]);
-    assert(() {
-      this.dio.interceptors.add(SafeLoggingInterceptor());
-      return true;
-    }());
   }
   final Dio dio;
 }

@@ -5,97 +5,250 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../config/routes/route_names.dart';
-import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
+import '../../../core/diagnostics/app_diagnostics.dart';
 import '../../../shared/widgets/app_app_bar.dart';
-import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/app_button.dart';
+import '../../../shared/widgets/app_dropdown.dart';
+import '../../../shared/widgets/app_snackbar.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_loader.dart';
-import '../../../shared/widgets/app_page_banner.dart';
+import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
-import '../../../shared/widgets/app_status_badge.dart';
-import '../models/point_of_purchase_model.dart';
 import '../viewmodels/point_of_purchase_viewmodel.dart';
+import '../widgets/app_purchase_card.dart';
 
 class PointOfPurchaseScreen extends StatefulWidget {
   const PointOfPurchaseScreen({super.key});
-
   @override
   State<PointOfPurchaseScreen> createState() => _PointOfPurchaseScreenState();
 }
 
 class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
+  final _search = TextEditingController();
+  int? _status;
+  String? _supplier;
+  String? _productType;
   @override
   void initState() {
     super.initState();
-    unawaited(context.read<PointOfPurchaseViewModel>().loadPointOfPurchases());
+    AppDiagnostics.write('[POP SCREEN] initState');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(context.read<PointOfPurchaseViewModel>().ensureLoaded());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Consumer<PointOfPurchaseViewModel>(
-    builder: (context, viewModel, _) => Scaffold(
-      appBar: AppAppBar(title: AppHeaderTitle(title: viewModel.title)),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: AppDimensions.purchaseListMaxWidth,
+    builder: (context, vm, _) => Scaffold(
+      appBar: AppAppBar(
+        title: const AppHeaderTitle(title: 'Purchases'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Tooltip(
+              message: 'New purchase',
+              child: AppButton(
+                label: 'New',
+                icon: AppIconName.add,
+                variant: AppButtonVariant.text,
+                expand: false,
+                onPressed: _createPurchase,
+              ),
+            ),
           ),
-          child: _buildContent(context, viewModel),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppDimensions.purchaseListMaxWidth,
+            ),
+            child: _content(vm),
+          ),
         ),
       ),
     ),
   );
+  Future<void> _createPurchase() async {
+    final created = await context.pushNamed<bool>(
+      RouteNames.createPointOfPurchase,
+    );
+    if (created == true && mounted) {
+      AppSnackbar.show(context, 'Purchase saved', type: AppMessageType.success);
+    }
+  }
 
-  Widget _buildContent(
-    BuildContext context,
-    PointOfPurchaseViewModel viewModel,
-  ) {
-    if (viewModel.isLoading && viewModel.records.isEmpty) {
+  Widget _content(PointOfPurchaseViewModel vm) {
+    if (AppDiagnostics.enabled) {
+      AppDiagnostics.write(
+        '[POP SCREEN] render loading=${vm.isLoading} count=${vm.records.length}',
+      );
+    }
+    if (vm.isLoading && vm.records.isEmpty) {
       return const AppLoader(label: 'Loading purchase records...');
     }
-    if (viewModel.errorMessage != null && viewModel.records.isEmpty) {
+    if (vm.errorMessage != null && vm.records.isEmpty) {
       return AppErrorWidget(
-        message: viewModel.errorMessage!,
-        onRetry: () => unawaited(viewModel.loadPointOfPurchases()),
+        message: vm.errorMessage!,
+        onRetry: () => unawaited(vm.loadPointOfPurchases()),
       );
     }
-    if (viewModel.records.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: viewModel.loadPointOfPurchases,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(AppDimensions.pageGutter),
-          children: [
-            const _ListHeading(count: 0),
-            const SizedBox(height: AppSpacing.large),
-            const AppEmptyState(
-              icon: AppIconName.purchase,
-              title: 'No purchases found',
-              description: 'Supplier purchase records will appear here.',
-            ),
-          ],
-        ),
-      );
-    }
-
+    final query = _search.text.trim().toLowerCase();
+    final suppliers = _filterOptions([
+      for (final record in vm.records)
+        _supplierName(record.supplierName, record.supplierId),
+      _supplier,
+    ]);
+    final productTypes = _filterOptions([
+      for (final record in vm.records) record.productType,
+      _productType,
+    ]);
+    final records = vm.records
+        .where(
+          (record) =>
+              (_status == null || (record.docStatus ?? 0) == _status) &&
+              (_supplier == null ||
+                  _supplierName(record.supplierName, record.supplierId) ==
+                      _supplier) &&
+              (_productType == null ||
+                  record.productType?.trim() == _productType) &&
+              [
+                record.name,
+                record.supplierName,
+                record.supplierId,
+                record.collectionLocation,
+              ].whereType<String>().join(' ').toLowerCase().contains(query),
+        )
+        .toList(growable: false);
     return RefreshIndicator(
-      onRefresh: viewModel.loadPointOfPurchases,
+      onRefresh: vm.loadPointOfPurchases,
       child: ListView.separated(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppDimensions.pageGutter),
-        itemCount: viewModel.records.length + 1,
-        separatorBuilder: (_, index) => SizedBox(
-          height: index == 0 ? AppSpacing.small : AppSpacing.standard,
-        ),
+        itemCount: records.isEmpty ? 2 : records.length + 1,
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.cardGap),
         itemBuilder: (context, index) {
           if (index == 0) {
-            return _ListHeading(count: viewModel.records.length);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppSearchField(
+                  controller: _search,
+                  hint: 'Search purchases',
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: AppSpacing.cardGap),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final filters = [
+                      _filterDropdown(
+                        label: 'Supplier name',
+                        allLabel: 'All suppliers',
+                        value: _supplier,
+                        options: suppliers,
+                        onChanged: (value) => setState(() => _supplier = value),
+                      ),
+                      _filterDropdown(
+                        label: 'Product type',
+                        allLabel: 'All types',
+                        value: _productType,
+                        options: productTypes,
+                        onChanged: (value) =>
+                            setState(() => _productType = value),
+                      ),
+                    ];
+                    if (constraints.maxWidth < 320 ||
+                        MediaQuery.textScalerOf(context).scale(14) > 18) {
+                      return Column(
+                        children: [
+                          filters[0],
+                          const SizedBox(height: AppSpacing.cardGap),
+                          filters[1],
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: filters[0]),
+                        const SizedBox(width: AppSpacing.cardGap),
+                        Expanded(child: filters[1]),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: AppSpacing.cardGap),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final filter in const <(String, int?)>[
+                        ('All', null),
+                        ('Draft', 0),
+                        ('Submitted', 1),
+                        ('Cancelled', 2),
+                      ])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(filter.$1),
+                            selected: _status == filter.$2,
+                            onSelected: (_) =>
+                                setState(() => _status = filter.$2),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.small),
+                Text(
+                  '${records.length} recent ${records.length == 1 ? 'purchase' : 'purchases'}',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Search and filters apply to the latest 50 records.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (vm.errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    vm.errorMessage!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
+            );
           }
-          final record = viewModel.records[index - 1];
-          return _PurchaseCard(
+          if (records.isEmpty) {
+            return AppEmptyState(
+              icon: AppIconName.purchase,
+              title: vm.records.isEmpty
+                  ? 'No purchases found'
+                  : 'No matching purchases',
+              description: vm.records.isEmpty
+                  ? 'Your purchase records will appear here.'
+                  : 'Try another search, supplier, product type or status.',
+            );
+          }
+          final record = records[index - 1];
+          return AppPurchaseCard(
             record: record,
             onTap: () => context.pushNamed(
               RouteNames.pointOfPurchaseDetail,
@@ -106,194 +259,39 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
       ),
     );
   }
+
+  String? _supplierName(String? name, String? id) =>
+      name?.trim().isNotEmpty == true ? name!.trim() : id?.trim();
+
+  List<String> _filterOptions(Iterable<String?> values) =>
+      values
+          .whereType<String>()
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+  Widget _filterDropdown({
+    required String label,
+    required String allLabel,
+    required String? value,
+    required List<String> options,
+    required ValueChanged<String?> onChanged,
+  }) => AppDropdown<String>(
+    label: label,
+    value: value ?? '',
+    items: [
+      DropdownMenuItem(
+        value: '',
+        child: Text(allLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+      for (final option in options)
+        DropdownMenuItem(
+          value: option,
+          child: Text(option, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+    ],
+    onChanged: (value) => onChanged(value == '' ? null : value),
+  );
 }
-
-class _ListHeading extends StatelessWidget {
-  const _ListHeading({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.small),
-      child: AppPageBanner(
-        eyebrow: 'Buying workspace',
-        title: 'Supplier purchases',
-        description: 'Review recent point-of-purchase records.',
-        icon: AppIconName.purchase,
-        badge: '$count records',
-      ),
-    );
-  }
-}
-
-class _PurchaseCard extends StatelessWidget {
-  const _PurchaseCard({required this.record, required this.onTap});
-
-  final PointOfPurchaseModel record;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final supplier = record.supplierName ?? record.supplierId ?? 'Supplier';
-    final status = switch (record.docStatus) {
-      1 => 'Submitted',
-      2 => 'Cancelled',
-      _ => 'Draft',
-    };
-    final statusColor = switch (record.docStatus) {
-      1 => theme.extension<AppSemanticColors>()!.success,
-      2 => theme.extension<AppSemanticColors>()!.error,
-      _ => theme.extension<AppSemanticColors>()!.warning,
-    };
-    final amount = record.netPayable ?? record.grandTotal;
-
-    return AppCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(AppSpacing.standard),
-      tone: record.docStatus == 1
-          ? AppCardTone.success
-          : record.docStatus == 2
-          ? AppCardTone.error
-          : AppCardTone.warning,
-      showAccentBar: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-                ),
-                child: AppSvgIcon(
-                  icon: AppIconName.purchase,
-                  size: 21,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.medium),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      supplier,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: AppSpacing.xSmall),
-                    Text(
-                      record.name,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.small),
-              AppStatusBadge(label: status, color: statusColor),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.standard),
-          Wrap(
-            spacing: AppSpacing.large,
-            runSpacing: AppSpacing.small,
-            children: [
-              if (record.productType != null)
-                _RecordFact(label: 'Product', value: record.productType!),
-              if (record.collectionLocation != null)
-                _RecordFact(
-                  label: 'Collection location',
-                  value: record.collectionLocation!,
-                ),
-              if (record.purchaseDateTime != null)
-                _RecordFact(label: 'Date', value: record.purchaseDateTime!),
-              if (record.grossWeight != null)
-                _RecordFact(
-                  label: 'Gross weight',
-                  value: '${_number(record.grossWeight!)} kg',
-                ),
-            ],
-          ),
-          if (amount != null) ...[
-            const SizedBox(height: AppSpacing.standard),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.medium,
-                vertical: AppSpacing.small,
-              ),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondaryContainer.withValues(
-                  alpha: 0.55,
-                ),
-                borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
-              ),
-              child: Row(
-                children: [
-                  Text('Net payable', style: theme.textTheme.bodySmall),
-                  const Spacer(),
-                  Text(
-                    _number(amount),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.onSecondaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.xSmall),
-                  AppSvgIcon(
-                    icon: AppIconName.chevronRight,
-                    size: 18,
-                    color: theme.colorScheme.onSecondaryContainer,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _RecordFact extends StatelessWidget {
-  const _RecordFact({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 240),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.small,
-        vertical: AppSpacing.xSmall,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(AppDimensions.badgeRadius),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: theme.textTheme.labelSmall),
-          const SizedBox(height: AppSpacing.xSmall),
-          Text(value, style: theme.textTheme.bodyMedium),
-        ],
-      ),
-    );
-  }
-}
-
-String _number(double value) => value.toStringAsFixed(2);

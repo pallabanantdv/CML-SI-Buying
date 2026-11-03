@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
 import '../../../shared/widgets/app_card.dart';
-import '../../../shared/widgets/app_svg_icon.dart';
+import '../../../shared/widgets/app_app_bar.dart';
+import '../../../shared/widgets/app_header_title.dart';
 import '../widgets/login_form.dart';
 
 class LoginScreen extends StatelessWidget {
@@ -11,6 +12,7 @@ class LoginScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    appBar: const AppAppBar(title: AppHeaderTitle(title: 'CAML SI Buying')),
     body: SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) => SingleChildScrollView(
@@ -18,7 +20,7 @@ class LoginScreen extends StatelessWidget {
             horizontal: constraints.maxWidth < 420
                 ? AppSpacing.standard
                 : AppSpacing.large,
-            vertical: AppSpacing.xLarge,
+            vertical: AppSpacing.standard,
           ),
           child: Center(
             child: ConstrainedBox(
@@ -29,52 +31,8 @@ class LoginScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: AppSpacing.xSmall,
-                      bottom: AppSpacing.standard,
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primaryContainer,
-                            borderRadius: BorderRadius.circular(
-                              AppDimensions.fieldRadius,
-                            ),
-                          ),
-                          child: AppSvgIcon(
-                            icon: AppIconName.inventory,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 21,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.medium),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'CML SI Buying',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            Text(
-                              'PROCUREMENT WORKSPACE',
-                              style: Theme.of(context).textTheme.labelMedium,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(height: 150),
                   AppCard(
-                    padding: const EdgeInsets.all(AppSpacing.large),
+                    padding: const EdgeInsets.all(AppSpacing.cardPadding),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -87,7 +45,7 @@ class LoginScreen extends StatelessWidget {
                           'Use your ERPNext account to continue.',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        const SizedBox(height: AppSpacing.large),
+                        const SizedBox(height: AppSpacing.sectionGap),
                         const LoginForm(),
                       ],
                     ),

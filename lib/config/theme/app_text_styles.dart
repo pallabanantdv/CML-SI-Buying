@@ -4,7 +4,7 @@ import 'app_colors.dart';
 
 abstract final class AppTextStyles {
   static const String titleFontFamily = 'Poppins';
-  static const String bodyFontFamily = 'Inter';
+  static const String bodyFontFamily = 'Alike Angular';
 
   // Retained for compatibility with code that used the former app-wide font.
   static const String fontFamily = bodyFontFamily;
@@ -48,14 +48,14 @@ abstract final class AppTextStyles {
       headlineSmall: TextStyle(
         fontFamily: titleFontFamily,
         color: primary,
-        fontSize: 20,
+        fontSize: 17,
         height: 1.25,
         fontWeight: FontWeight.w600,
       ),
       headlineMedium: TextStyle(
         fontFamily: titleFontFamily,
         color: primary,
-        fontSize: 18,
+        fontSize: 17,
         height: 1.25,
         fontWeight: FontWeight.w600,
       ),
@@ -76,54 +76,62 @@ abstract final class AppTextStyles {
       titleSmall: TextStyle(
         fontFamily: titleFontFamily,
         color: primary,
-        fontSize: 13,
+        fontSize: 14,
         height: 1.35,
         fontWeight: FontWeight.w600,
       ),
       bodyLarge: TextStyle(
         fontFamily: bodyFontFamily,
         color: primary,
-        fontSize: 15,
+        fontSize: 16,
         height: 1.5,
+        fontWeight: FontWeight.w700,
       ),
       bodyMedium: TextStyle(
         fontFamily: bodyFontFamily,
         color: primary,
-        fontSize: 13,
+        fontSize: 14,
         height: 1.45,
+        fontWeight: FontWeight.w700,
       ),
       bodySmall: TextStyle(
         fontFamily: bodyFontFamily,
         color: secondary,
-        fontSize: 11,
+        fontSize: 12,
         height: 1.4,
+        fontWeight: FontWeight.w700,
       ),
       labelLarge: const TextStyle(
         fontFamily: bodyFontFamily,
-        fontSize: 13,
+        fontSize: 14,
         height: 1.2,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w800,
       ),
       labelMedium: TextStyle(
         fontFamily: bodyFontFamily,
         color: secondary,
         fontSize: 12,
         height: 1.2,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w800,
       ),
       labelSmall: TextStyle(
         fontFamily: bodyFontFamily,
         color: secondary,
-        fontSize: 11,
+        fontSize: 12,
         height: 1.2,
-        fontWeight: FontWeight.w400,
+        fontWeight: FontWeight.w800,
       ),
     );
   }
 
   static TextStyle appBarTitle(Brightness brightness) =>
-      theme(brightness).titleMedium!.copyWith(fontSize: 15);
+      theme(brightness).titleMedium!.copyWith(fontSize: 17);
 
-  static TextStyle errorText(Brightness brightness) =>
-      theme(brightness).bodySmall!.copyWith(color: AppColors.error);
+  static TextStyle errorText(Brightness brightness) => theme(brightness)
+      .bodySmall!
+      .copyWith(
+        color: brightness == Brightness.light
+            ? AppColors.error
+            : AppColors.darkError,
+      );
 }

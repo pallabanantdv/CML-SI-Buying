@@ -51,17 +51,19 @@ class _LoginFormState extends State<LoginForm> {
             keyboardType: TextInputType.emailAddress,
             validator: (value) => Validators.required(value, 'Username'),
           ),
-          const SizedBox(height: AppSpacing.standard),
+          const SizedBox(height: AppSpacing.sectionGap),
           AppTextField(
             controller: _password,
             label: 'Password',
             required: true,
             isPassword: true,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => unawaited(_submit()),
             autofillHints: const [AutofillHints.password],
             prefixIcon: const AppSvgIcon(icon: AppIconName.lock, size: 20),
             validator: (value) => Validators.required(value, 'Password'),
           ),
-          const SizedBox(height: AppSpacing.large),
+          const SizedBox(height: AppSpacing.sectionGap),
           Consumer<AuthViewModel>(
             builder: (context, auth, _) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

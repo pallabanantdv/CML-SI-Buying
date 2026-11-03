@@ -86,27 +86,27 @@ class _AnimatedBranchContainerState extends State<AnimatedBranchContainer>
     final isActive = index == _activeIndex;
     final isPrevious = index == _previousIndex && !isActive;
     final isVisible = isActive || isPrevious;
-    final child = TickerMode(enabled: isActive, child: widget.children[index]);
-
-    if (!isVisible) return Offstage(offstage: true, child: child);
-    if (isPrevious) {
-      final exitSlide = Tween<Offset>(
-        begin: Offset.zero,
-        end: const Offset(-0.025, 0),
-      ).animate(_progress);
-      return FadeTransition(
-        opacity: ReverseAnimation(_progress),
-        child: SlideTransition(position: exitSlide, child: child),
-      );
-    }
-
-    final enterSlide = Tween<Offset>(
-      begin: const Offset(0.025, 0),
-      end: Offset.zero,
+    // Keep the navigator under the same ancestors for every visibility state.
+    // Changing Offstage into FadeTransition reparents its GlobalKey mid-build.
+    final slide = Tween<Offset>(
+      begin: isPrevious ? Offset.zero : const Offset(0.025, 0),
+      end: isPrevious ? const Offset(-0.025, 0) : Offset.zero,
     ).animate(_progress);
-    return FadeTransition(
-      opacity: _progress,
-      child: SlideTransition(position: enterSlide, child: child),
+    return Offstage(
+      offstage: !isVisible,
+      child: TickerMode(
+        enabled: isActive,
+        child: IgnorePointer(
+          ignoring: !isActive,
+          child: FadeTransition(
+            opacity: isPrevious ? ReverseAnimation(_progress) : _progress,
+            child: SlideTransition(
+              position: slide,
+              child: widget.children[index],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

@@ -39,11 +39,15 @@ class AppButton extends StatelessWidget {
       AppButtonVariant.text => TextButton.styleFrom(),
       AppButtonVariant.danger => FilledButton.styleFrom(
         backgroundColor: context.appColors.error,
-        foregroundColor: AppColors.surface,
+        foregroundColor: Theme.of(context).brightness == Brightness.dark
+            ? AppColors.darkCanvas
+            : AppColors.surface,
       ),
       AppButtonVariant.success => FilledButton.styleFrom(
         backgroundColor: context.appColors.success,
-        foregroundColor: AppColors.surface,
+        foregroundColor: Theme.of(context).brightness == Brightness.dark
+            ? AppColors.darkCanvas
+            : AppColors.surface,
       ),
     };
     final child = _content(context);
@@ -112,7 +116,10 @@ class AppButton extends StatelessWidget {
       AppButtonVariant.primary => scheme.onPrimary,
       AppButtonVariant.secondary => scheme.onSecondaryContainer,
       AppButtonVariant.outlined || AppButtonVariant.text => scheme.primary,
-      AppButtonVariant.danger || AppButtonVariant.success => AppColors.surface,
+      AppButtonVariant.danger || AppButtonVariant.success =>
+        Theme.of(context).brightness == Brightness.dark
+            ? AppColors.darkCanvas
+            : AppColors.surface,
     };
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -120,7 +127,7 @@ class AppButton extends StatelessWidget {
       children: [
         AppSvgIcon(icon: icon!, size: 18, color: iconColor),
         const SizedBox(width: AppSpacing.small),
-        Text(label),
+        Flexible(child: Text(label, textAlign: TextAlign.center)),
       ],
     );
   }

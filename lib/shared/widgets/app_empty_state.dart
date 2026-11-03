@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_state_layout.dart';
+
 import '../../config/theme/app_spacing.dart';
 import 'app_button.dart';
 import 'app_svg_icon.dart';
@@ -20,7 +22,7 @@ class AppEmptyState extends StatelessWidget {
   final VoidCallback? onAction;
 
   @override
-  Widget build(BuildContext context) => Center(
+  Widget build(BuildContext context) => AppStateLayout(
     child: Padding(
       padding: const EdgeInsets.all(AppSpacing.large),
       child: Column(

@@ -36,7 +36,14 @@ abstract final class AppSnackbar {
                 size: 20,
               ),
               const SizedBox(width: AppSpacing.small),
-              Expanded(child: Text(message)),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                ),
+              ),
             ],
           ),
           backgroundColor: color,

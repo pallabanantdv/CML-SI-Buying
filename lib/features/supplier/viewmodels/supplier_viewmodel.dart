@@ -1,10 +1,10 @@
-import 'package:flutter/foundation.dart';
-
+import '../../../core/diagnostics/app_diagnostics.dart';
+import '../../../core/diagnostics/diagnostic_notifier.dart';
 import '../../../core/errors/app_exception.dart';
 import '../models/supplier_model.dart';
 import '../repositories/supplier_repository.dart';
 
-class SupplierViewModel extends ChangeNotifier {
+class SupplierViewModel extends DiagnosticNotifier {
   SupplierViewModel(this.repository);
 
   final SupplierRepository repository;
@@ -42,19 +42,31 @@ class SupplierViewModel extends ChangeNotifier {
   }
 
   Future<void> loadSuppliers() async {
-    if (_isLoading) return;
+    if (isDisposed || _isLoading) return;
+    AppDiagnostics.write('[$runtimeType] list load started');
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
-      _suppliers = await repository.getSuppliers();
+      final result = await repository.getSuppliers();
+      if (isDisposed) return;
+      _suppliers = result;
+      if (AppDiagnostics.enabled) {
+        AppDiagnostics.write(
+          '[$runtimeType] parsed count=${_suppliers.length}',
+        );
+      }
     } on AppException catch (error) {
+      if (isDisposed) return;
       _errorMessage = error.message;
     } catch (_) {
+      if (isDisposed) return;
       _errorMessage = 'Unable to load suppliers.';
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (!isDisposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 

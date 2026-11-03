@@ -5,14 +5,15 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../config/theme/app_dimensions.dart';
+import '../../../core/utils/number_format.dart';
 import '../../../config/theme/app_spacing.dart';
 import '../../../shared/widgets/app_app_bar.dart';
-import '../../../shared/widgets/app_button.dart';
+import '../../../shared/widgets/app_form_action_bar.dart';
+import '../../../shared/widgets/app_snackbar.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_checkbox.dart';
 import '../../../shared/widgets/app_dropdown.dart';
 import '../../../shared/widgets/app_header_title.dart';
-import '../../../shared/widgets/app_page_banner.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../../../shared/widgets/app_text_field.dart';
 import '../viewmodels/point_of_purchase_viewmodel.dart';
@@ -79,97 +80,91 @@ class _CreatePointOfPurchaseScreenState
   @override
   Widget build(BuildContext context) => Consumer<PointOfPurchaseViewModel>(
     builder: (context, viewModel, _) => Scaffold(
-      appBar: const AppAppBar(
-        title: AppHeaderTitle(title: 'New point of purchase'),
+      appBar: const AppAppBar(title: AppHeaderTitle(title: 'New purchase')),
+      bottomNavigationBar: AppFormActionBar(
+        label: 'Save purchase',
+        isLoading: viewModel.isCreating,
+        onPressed: viewModel.isCreating ? null : () => _submit(viewModel),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: AppDimensions.detailContentMaxWidth,
-          ),
-          child: Form(
-            key: _formKey,
-            child: ListView(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(AppDimensions.pageGutter),
-
-                  child: AppPageBanner(
-                    eyebrow: 'Buying workspace',
-                    title: 'New point of purchase',
-                    description:
-                        'Add supplier, delivery, pricing, and payment details.',
-                    icon: AppIconName.purchase,
-                  ),
-                ),
-                // const SizedBox(height: AppSpacing.standard),
-                if (viewModel.isLoadingCreateOptions) ...[
-                  const LinearProgressIndicator(),
-                  const SizedBox(height: AppSpacing.standard),
-                ],
-                if (viewModel.createOptionsError != null) ...[
-                  _MessagePanel(
-                    message: viewModel.createOptionsError!,
-                    isError: true,
-                    action: TextButton(
-                      onPressed: () => unawaited(viewModel.loadCreateOptions()),
-                      child: const Text('Retry'),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppDimensions.detailContentMaxWidth,
+            ),
+            child: Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.all(AppDimensions.pageGutter),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (viewModel.isLoadingCreateOptions) ...[
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                    ],
+                    if (viewModel.createOptionsError != null) ...[
+                      _MessagePanel(
+                        message: viewModel.createOptionsError!,
+                        isError: true,
+                        action: TextButton(
+                          onPressed: () =>
+                              unawaited(viewModel.loadCreateOptions()),
+                          child: const Text('Retry'),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                    ],
+                    _supplierSection(viewModel),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    _deliverySection(viewModel),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    _buildBagTable(),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    _pricingSection(),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    _buildItemTable(viewModel),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    _buildAdvanceTable(viewModel),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    const AppCard(
+                      tone: AppCardTone.info,
+                      showAccentBar: false,
+                      title: 'Invoice advances',
+                      leading: AppSvgIcon(icon: AppIconName.inventory),
+                      child: Text(
+                        'This read-only table is filled automatically by the ERP when an invoice advance applies.',
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.standard),
-                ],
-                _supplierSection(viewModel),
-                const SizedBox(height: AppSpacing.standard),
-                _deliverySection(viewModel),
-                const SizedBox(height: AppSpacing.standard),
-                _buildBagTable(),
-                const SizedBox(height: AppSpacing.standard),
-                _pricingSection(),
-                const SizedBox(height: AppSpacing.standard),
-                _buildItemTable(viewModel),
-                const SizedBox(height: AppSpacing.standard),
-                _buildAdvanceTable(viewModel),
-                const SizedBox(height: AppSpacing.standard),
-                const AppCard(
-                  tone: AppCardTone.info,
-                  showAccentBar: true,
-                  title: 'Advance Table',
-                  leading: AppSvgIcon(icon: AppIconName.inventory),
-                  child: Text(
-                    'This read-only table is filled automatically by the ERP when an invoice advance applies.',
-                  ),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    _paymentAndAccountsSection(viewModel),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    _erpFieldsSection(viewModel),
+                    if (_instantPaid) ...[
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _buildCashPaymentTable(viewModel),
+                    ],
+                    if (viewModel.createErrorMessage != null) ...[
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _MessagePanel(
+                        message: viewModel.createErrorMessage!,
+                        isError: true,
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.sectionGap),
+                    TextButton(
+                      onPressed: viewModel.isCreating
+                          ? null
+                          : () => context.pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(height: AppSpacing.sectionGap),
+                  ],
                 ),
-                const SizedBox(height: AppSpacing.standard),
-                _paymentAndAccountsSection(viewModel),
-                const SizedBox(height: AppSpacing.standard),
-                _erpFieldsSection(viewModel),
-                if (_instantPaid) ...[
-                  const SizedBox(height: AppSpacing.standard),
-                  _buildCashPaymentTable(viewModel),
-                ],
-                if (viewModel.createErrorMessage != null) ...[
-                  const SizedBox(height: AppSpacing.standard),
-                  _MessagePanel(
-                    message: viewModel.createErrorMessage!,
-                    isError: true,
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.standard),
-                AppButton(
-                  label: 'Save purchase',
-                  icon: AppIconName.success,
-                  isLoading: viewModel.isCreating,
-                  onPressed: viewModel.isCreating
-                      ? null
-                      : () => _submit(viewModel),
-                ),
-                const SizedBox(height: AppSpacing.small),
-                TextButton(
-                  onPressed: viewModel.isCreating ? null : () => context.pop(),
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(height: AppSpacing.xLarge),
-              ],
+              ),
             ),
           ),
         ),
@@ -179,7 +174,7 @@ class _CreatePointOfPurchaseScreenState
 
   Widget _supplierSection(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.primary,
-    showAccentBar: true,
+    showAccentBar: false,
     title: 'Supplier and collection',
     leading: const AppSvgIcon(icon: AppIconName.supplier),
     child: _fieldGrid([
@@ -238,7 +233,7 @@ class _CreatePointOfPurchaseScreenState
 
   Widget _deliverySection(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.info,
-    showAccentBar: true,
+    showAccentBar: false,
     title: 'Purchase and delivery',
     leading: const AppSvgIcon(icon: AppIconName.purchase),
     child: _fieldGrid([
@@ -266,7 +261,7 @@ class _CreatePointOfPurchaseScreenState
 
   Widget _pricingSection() => AppCard(
     tone: AppCardTone.warning,
-    showAccentBar: true,
+    showAccentBar: false,
     title: 'Pricing and deductions',
     leading: const AppSvgIcon(icon: AppIconName.inventory),
     child: _fieldGrid([
@@ -318,7 +313,7 @@ class _CreatePointOfPurchaseScreenState
   Widget _paymentAndAccountsSection(PointOfPurchaseViewModel viewModel) =>
       AppCard(
         tone: AppCardTone.success,
-        showAccentBar: true,
+        showAccentBar: false,
         title: 'Payment and accounts',
         leading: const AppSvgIcon(icon: AppIconName.inventory),
         child: Column(
@@ -438,9 +433,9 @@ class _CreatePointOfPurchaseScreenState
 
   Widget _erpFieldsSection(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.neutral,
-    showAccentBar: true,
-    title: 'Additional DocType fields',
-    subtitle: 'Optional links and ERP-managed fields from the schema',
+    showAccentBar: false,
+    title: 'Additional information',
+    subtitle: 'References and optional record details',
     leading: const AppSvgIcon(icon: AppIconName.inventory),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -524,7 +519,11 @@ class _CreatePointOfPurchaseScreenState
 
   Widget _fieldGrid(List<Widget> fields) => LayoutBuilder(
     builder: (context, constraints) {
-      final columns = constraints.maxWidth >= 600 ? 2 : 1;
+      final columns =
+          constraints.maxWidth >= 520 &&
+              MediaQuery.textScalerOf(context).scale(14) <= 18
+          ? 2
+          : 1;
       final gap = AppSpacing.medium;
       final width = (constraints.maxWidth - (columns - 1) * gap) / columns;
       return Wrap(
@@ -671,8 +670,8 @@ class _CreatePointOfPurchaseScreenState
 
   Widget _buildBagTable() => AppCard(
     tone: AppCardTone.success,
-    showAccentBar: true,
-    title: 'Total Bag',
+    showAccentBar: false,
+    title: 'Bags and weight',
     subtitle: '${_bags.length} ${_bags.length == 1 ? 'row' : 'rows'}',
     leading: const AppSvgIcon(icon: AppIconName.inventory),
     trailing: _AddRowButton(
@@ -740,8 +739,8 @@ class _CreatePointOfPurchaseScreenState
 
   Widget _buildItemTable(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.primary,
-    showAccentBar: true,
-    title: 'Supplier POP Item',
+    showAccentBar: false,
+    title: 'Purchase items',
     subtitle: '${_items.length} ${_items.length == 1 ? 'row' : 'rows'}',
     leading: const AppSvgIcon(icon: AppIconName.purchase),
     trailing: _AddRowButton(
@@ -838,8 +837,8 @@ class _CreatePointOfPurchaseScreenState
 
   Widget _buildAdvanceTable(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.info,
-    showAccentBar: true,
-    title: 'Supplier Advance Allocation',
+    showAccentBar: false,
+    title: 'Advance allocations',
     subtitle: '${_advances.length} ${_advances.length == 1 ? 'row' : 'rows'}',
     leading: const AppSvgIcon(icon: AppIconName.inventory),
     trailing: _AddRowButton(
@@ -914,8 +913,8 @@ class _CreatePointOfPurchaseScreenState
 
   Widget _buildCashPaymentTable(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.success,
-    showAccentBar: true,
-    title: 'POP Cash Payment',
+    showAccentBar: false,
+    title: 'Cash payments',
     subtitle:
         '${_cashPayments.length} ${_cashPayments.length == 1 ? 'row' : 'rows'}',
     leading: const AppSvgIcon(icon: AppIconName.inventory),
@@ -1000,7 +999,7 @@ class _CreatePointOfPurchaseScreenState
   Future<void> _submit(PointOfPurchaseViewModel viewModel) async {
     FocusScope.of(context).unfocus();
     viewModel.clearCreateError();
-    if (!_formKey.currentState!.validate()) return;
+    if (!await validateAndReveal(_formKey) || !mounted) return;
 
     final supplier = viewModel.supplierOptions.firstWhere(
       (option) => option['value'] == _supplier,
@@ -1112,7 +1111,16 @@ class _CreatePointOfPurchaseScreenState
     );
 
     final created = await viewModel.createPointOfPurchase(payload);
-    if (created && mounted) context.pop(true);
+    if (!mounted) return;
+    if (created) {
+      context.pop(true);
+    } else {
+      AppSnackbar.show(
+        context,
+        viewModel.createErrorMessage ?? 'Unable to save purchase.',
+        type: AppMessageType.error,
+      );
+    }
   }
 
   Map<String, dynamic>? _itemOption(
@@ -1218,7 +1226,7 @@ class _AddRowButton extends StatelessWidget {
   Widget build(BuildContext context) => TextButton.icon(
     onPressed: onPressed,
     icon: const AppSvgIcon(icon: AppIconName.add, size: 18),
-    label: const Text('Add row'),
+    label: const Text('Add'),
   );
 }
 
@@ -1230,13 +1238,26 @@ class _EditorRow extends StatelessWidget {
   final VoidCallback? onRemove;
 
   @override
-  Widget build(BuildContext context) => AppCard(
-    title: title,
-    padding: const EdgeInsets.all(AppSpacing.medium),
-    trailing: onRemove == null
-        ? null
-        : TextButton(onPressed: onRemove, child: const Text('Remove')),
-    child: child,
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Text(title, style: Theme.of(context).textTheme.titleSmall),
+          ),
+          if (onRemove != null)
+            IconButton(
+              tooltip: 'Remove $title',
+              onPressed: onRemove,
+              icon: const Icon(Icons.remove_circle_outline, size: 20),
+            ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      child,
+    ],
   );
 }
 
@@ -1251,19 +1272,19 @@ class _AmountPreview extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.medium,
-        vertical: AppSpacing.standard,
+        vertical: AppSpacing.small,
       ),
       decoration: BoxDecoration(
         color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(AppDimensions.fieldRadius),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text('Total amount', style: theme.textTheme.bodyMedium),
-          ),
+          Text('Total amount', style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 4),
           Text(
-            amount.toStringAsFixed(2),
+            AppNumberFormat.amount(amount),
             style: theme.textTheme.titleMedium?.copyWith(
               color: theme.colorScheme.onSecondaryContainer,
               fontWeight: FontWeight.w700,
@@ -1309,7 +1330,7 @@ class _MessagePanel extends StatelessWidget {
                   ?.copyWith(color: color),
             ),
           ),
-          if (action != null) action!,
+          ?action,
         ],
       ),
     );

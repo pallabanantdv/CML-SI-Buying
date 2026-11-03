@@ -26,6 +26,7 @@ class AppDropdown<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FormField<T>(
+    key: ValueKey(value),
     initialValue: value,
     validator: validator,
     builder: (field) {
@@ -52,7 +53,7 @@ class AppDropdown<T> extends StatelessWidget {
                   ),
                 );
 
-                if (selected == null) return;
+                if (selected == null || !context.mounted) return;
                 field.didChange(selected);
                 onChanged?.call(selected);
               }
@@ -63,6 +64,7 @@ class AppDropdown<T> extends StatelessWidget {
           isEmpty: selectedItem == null,
           decoration: InputDecoration(
             labelText: label,
+            errorMaxLines: 3,
             hintText: hint,
             hintStyle: Theme.of(context).textTheme.labelMedium,
             enabled: canSelect,

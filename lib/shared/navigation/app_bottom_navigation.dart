@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../config/routes/route_names.dart';
+import '../widgets/app_snackbar.dart';
 import '../widgets/app_svg_icon.dart';
 import 'bottom_navigation_item.dart';
+import 'app_floating_bottom_navigation.dart';
 
 class AppBottomNavigation extends StatelessWidget {
   const AppBottomNavigation({super.key, required this.navigationShell});
@@ -33,65 +36,24 @@ class AppBottomNavigation extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return SafeArea(
-      top: false,
-      child: BottomAppBar(
-        height: 76,
-        color: scheme.surface,
-        surfaceTintColor: scheme.surface,
-        elevation: 8,
-        notchMargin: 10,
-        clipBehavior: Clip.antiAlias,
-        shape: const AutomaticNotchedShape(StadiumBorder(), CircleBorder()),
-        child: Row(
-          children: [
-            for (var index = 0; index < 2; index++)
-              Expanded(child: _destination(context, index)),
-
-            const SizedBox(width: 80),
-
-            for (var index = 2; index < items.length; index++)
-              Expanded(child: _destination(context, index)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _destination(BuildContext context, int index) {
-    final item = items[index];
-    final selected = navigationShell.currentIndex == index;
-    final scheme = Theme.of(context).colorScheme;
-    final color = selected ? scheme.primary : scheme.onSurfaceVariant;
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: item.label,
-      child: InkWell(
-        onTap: () => navigationShell.goBranch(
-          index,
-          initialLocation: index == navigationShell.currentIndex,
-        ),
-        child: SizedBox.expand(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Tooltip(
-                message: item.label,
-                child: AppSvgIcon(
-                  icon: selected ? item.selectedIcon : item.icon,
-                  size: 24,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppFloatingBottomNavigation(
+    items: items,
+    selectedIndex: navigationShell.currentIndex,
+    onCreatePurchase: () async {
+      final created = await context.pushNamed<bool>(
+        RouteNames.createPointOfPurchase,
+      );
+      if (created == true && context.mounted) {
+        AppSnackbar.show(
+          context,
+          'Purchase saved',
+          type: AppMessageType.success,
+        );
+      }
+    },
+    onDestinationSelected: (index) => navigationShell.goBranch(
+      index,
+      initialLocation: index == navigationShell.currentIndex,
+    ),
+  );
 }

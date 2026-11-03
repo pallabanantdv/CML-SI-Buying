@@ -91,6 +91,8 @@ class _AppTextFieldState extends State<AppTextField> {
       labelText: widget.required ? null : widget.label,
       hintText: widget.hint,
       helperText: widget.helperText,
+      errorMaxLines: 3,
+      helperMaxLines: 3,
       prefixIcon: widget.prefixIcon == null
           ? null
           : SizedBox.square(
@@ -113,6 +115,7 @@ class _AppTextFieldState extends State<AppTextField> {
     );
 
     return TextFormField(
+      scrollPadding: const EdgeInsets.all(32),
       controller: widget.controller,
       focusNode: widget.focusNode,
       decoration: decoration,

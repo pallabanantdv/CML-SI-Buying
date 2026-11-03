@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-
+import '../../../core/diagnostics/app_diagnostics.dart';
+import '../../../core/diagnostics/diagnostic_notifier.dart';
 import '../../../core/errors/app_exception.dart';
 import '../models/point_of_purchase_model.dart';
 import '../repositories/point_of_purchase_repository.dart';
 
-class PointOfPurchaseViewModel extends ChangeNotifier {
+class PointOfPurchaseViewModel extends DiagnosticNotifier {
   PointOfPurchaseViewModel(this.repository);
 
   final PointOfPurchaseRepository repository;
@@ -14,6 +14,27 @@ class PointOfPurchaseViewModel extends ChangeNotifier {
   String get title => 'Point of Purchase';
   List<PointOfPurchaseModel> _records = const [];
   bool _isLoading = false;
+  bool _hasLoaded = false;
+  int _listRequestId = 0;
+
+  void resetSession() {
+    ++_listRequestId;
+    ++_detailRequestId;
+    _hasLoaded = false;
+    _records = const [];
+    _selectedRecord = null;
+    _selectedName = null;
+    _errorMessage = null;
+    _detailErrorMessage = null;
+    _isLoading = false;
+    _isLoadingDetail = false;
+    notifyListeners();
+  }
+
+  Future<void> ensureLoaded() async {
+    if (!_hasLoaded && !_isLoading) await loadPointOfPurchases();
+  }
+
   String? _errorMessage;
   Map<String, dynamic>? _selectedRecord;
   String? _selectedName;
@@ -122,23 +143,39 @@ class PointOfPurchaseViewModel extends ChangeNotifier {
   }
 
   Future<void> loadPointOfPurchases() async {
-    if (_isLoading) return;
+    if (isDisposed || _isLoading) return;
+    final listRequest = ++_listRequestId;
+    AppDiagnostics.write('[$runtimeType] list load started');
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
-      _records = await repository.getPointOfPurchases();
+      final result = await repository.getPointOfPurchases();
+      if (isDisposed || listRequest != _listRequestId) return;
+      _records = result;
+      _hasLoaded = true;
+      if (AppDiagnostics.enabled) {
+        AppDiagnostics.write('[$runtimeType] parsed count=${_records.length}');
+      }
     } on AppException catch (error) {
+      if (isDisposed || listRequest != _listRequestId) return;
       _errorMessage = error.message;
     } catch (_) {
+      if (isDisposed || listRequest != _listRequestId) return;
       _errorMessage = 'Unable to load point-of-purchase records.';
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (!isDisposed && listRequest == _listRequestId) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
   Future<void> loadPointOfPurchase(String documentName) async {
+    if (isDisposed || (_isLoadingDetail && _selectedName == documentName)) {
+      return;
+    }
+    AppDiagnostics.write('[$runtimeType] detail load started');
     final requestId = ++_detailRequestId;
     _selectedName = documentName;
     _selectedRecord = null;
@@ -147,16 +184,17 @@ class PointOfPurchaseViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       final record = await repository.getPointOfPurchase(documentName);
-      if (requestId != _detailRequestId) return;
+      if (isDisposed || requestId != _detailRequestId) return;
       _selectedRecord = record;
+      AppDiagnostics.write('[$runtimeType] detail parsed');
     } on AppException catch (error) {
-      if (requestId != _detailRequestId) return;
+      if (isDisposed || requestId != _detailRequestId) return;
       _detailErrorMessage = error.message;
     } catch (_) {
-      if (requestId != _detailRequestId) return;
+      if (isDisposed || requestId != _detailRequestId) return;
       _detailErrorMessage = 'Unable to load this purchase record.';
     } finally {
-      if (requestId == _detailRequestId) {
+      if (!isDisposed && requestId == _detailRequestId) {
         _isLoadingDetail = false;
         notifyListeners();
       }

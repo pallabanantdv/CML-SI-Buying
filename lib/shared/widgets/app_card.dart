@@ -17,7 +17,7 @@ class AppCard extends StatelessWidget {
     this.leading,
     this.trailing,
     this.onTap,
-    this.padding = const EdgeInsets.all(AppSpacing.standard),
+    this.padding = const EdgeInsets.all(AppSpacing.cardPadding),
     this.child,
     this.tone = AppCardTone.neutral,
     this.showAccentBar = false,
@@ -87,7 +87,7 @@ class AppCard extends StatelessWidget {
               children: [
                 if (leading != null) ...[
                   _LeadingBadge(color: toneColor, child: leading!),
-                  const SizedBox(width: AppSpacing.medium),
+                  const SizedBox(width: AppSpacing.small),
                 ],
                 if (title != null || subtitle != null)
                   Expanded(
@@ -128,11 +128,7 @@ class AppCard extends StatelessWidget {
               ],
             ),
           if (child != null) ...[
-            if (hasHeader) ...[
-              const SizedBox(height: AppSpacing.medium),
-              Divider(height: 1, thickness: 1, color: colors.border),
-              const SizedBox(height: AppSpacing.medium),
-            ],
+            if (hasHeader) ...[const SizedBox(height: AppSpacing.small)],
             child!,
           ],
         ],
@@ -162,7 +158,7 @@ class AppCard extends StatelessWidget {
                       left: 0,
                       top: 0,
                       bottom: 0,
-                      width: 4,
+                      width: 2,
                       child: ColoredBox(color: toneColor),
                     ),
                   ],
@@ -184,15 +180,15 @@ class _LeadingBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 44,
-      height: 44,
+      width: 28,
+      height: 28,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(7),
       ),
       child: IconTheme.merge(
-        data: IconThemeData(color: color, size: 24),
+        data: IconThemeData(color: color, size: 18),
         child: child,
       ),
     );

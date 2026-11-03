@@ -32,7 +32,7 @@ flutter:
     - .env.example
     - assets/icons/
     - assets/images/
-    - assets/fonts/OFL.txt
+    - assets/fonts/AlikeAngular-OFL.txt
     - assets/fonts/Poppins-OFL.txt
   fonts:
     - family: Poppins
@@ -41,13 +41,7 @@ flutter:
           weight: 600
         - asset: assets/fonts/Poppins-Bold.ttf
           weight: 700
-    - family: Inter
+    - family: Alike Angular
       fonts:
-        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/AlikeAngular-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Inter-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/Inter-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/Inter-Bold.ttf
-          weight: 700

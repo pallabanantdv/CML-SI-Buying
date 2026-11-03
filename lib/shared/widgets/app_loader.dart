@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_state_layout.dart';
+
 import '../../config/theme/app_spacing.dart';
 
 class AppLoader extends StatelessWidget {
@@ -7,7 +9,7 @@ class AppLoader extends StatelessWidget {
   final String? label;
 
   @override
-  Widget build(BuildContext context) => Center(
+  Widget build(BuildContext context) => AppStateLayout(
     child: Semantics(
       liveRegion: true,
       label: label ?? 'Loading',
