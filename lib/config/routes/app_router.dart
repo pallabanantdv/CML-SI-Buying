@@ -71,7 +71,12 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
       pageBuilder: (context, state) => AppPageTransitions.page(
         context,
         state,
-        const CreatePointOfPurchaseScreen(),
+        CreatePointOfPurchaseScreen(
+          documentName: state.uri.queryParameters['documentName'],
+          initialRecord: state.extra is Map<String, dynamic>
+              ? state.extra as Map<String, dynamic>
+              : null,
+        ),
       ),
     ),
     StatefulShellRoute(

@@ -47,7 +47,24 @@ class _CmlSiBuyingAppState extends State<CmlSiBuyingApp> {
       final paths = Set<String>.of(_changedPaths);
       _changedPaths.clear();
       final d = widget.dependencies;
-      unawaited(d.pointOfPurchase.refreshReferenceData());
+      // Purchase mutations already update the selected document and reset its
+      // advance balance. Reload form options only when their sources change;
+      // unrelated option failures must not follow a successful purchase save.
+      if (paths.any(
+        (p) => const {
+          '/api/resource/Supplier',
+          '/api/resource/Item',
+          '/api/resource/Journal Entry',
+          '/api/resource/Warehouse',
+          '/api/resource/Island',
+          '/api/resource/Company',
+          '/api/resource/Account',
+          '/api/resource/Mode of Payment',
+          '/api/resource/UOM',
+        }.any((source) => p == source || p.startsWith('$source/')),
+      )) {
+        unawaited(d.pointOfPurchase.refreshReferenceData());
+      }
       if (paths.any(
             (p) =>
                 p == '/api/resource/Supplier' ||

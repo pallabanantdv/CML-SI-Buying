@@ -8,24 +8,24 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../config/routes/route_names.dart';
-import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../features/auth/viewmodels/auth_viewmodel.dart';
 import '../../../shared/widgets/app_app_bar.dart';
 import '../../../shared/widgets/app_button.dart';
+import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/skeleton/skeleton.dart';
 import '../widgets/dashboard_skeleton.dart';
-import '../../../shared/widgets/app_status_badge.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../models/dashboard_data.dart';
 import '../viewmodels/dashboard_viewmodel.dart';
 import '../widgets/dashboard_summary_card.dart';
+import '../widgets/dashboard_purchase_chart.dart';
+import '../widgets/dashboard_revenue_chart.dart';
 import '../widgets/dashboard_kpi_card.dart';
 import '../widgets/dashboard_product_card.dart';
-import '../widgets/recent_purchase_tile.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -34,6 +34,44 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  DateTimeRange? _purchaseDateRange;
+
+  Future<void> _selectPurchaseDateRange() async {
+    final range = await showDateRangePicker(
+      context: context,
+      initialDateRange: _purchaseDateRange,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100, 12, 31),
+    );
+    if (!mounted || range == null) return;
+    setState(() => _purchaseDateRange = range);
+  }
+
+  DashboardData _purchaseTotalData(DashboardData data) {
+    final range = _purchaseDateRange;
+    if (range == null) return data;
+    final endExclusive = DateTime(
+      range.end.year,
+      range.end.month,
+      range.end.day + 1,
+    );
+    final dates = MaterialLocalizations.of(context);
+    return DashboardData(
+      periodLabel:
+          '${dates.formatShortDate(range.start)} – ${dates.formatShortDate(range.end)}',
+      currencySymbol: data.currencySymbol,
+      isDemo: data.isDemo,
+      products: data.products,
+      purchases: data.purchases
+          .where(
+            (purchase) =>
+                !purchase.date.isBefore(range.start) &&
+                purchase.date.isBefore(endExclusive),
+          )
+          .toList(),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -70,11 +108,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           'Purchase Overview',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
-                        if (vm.data?.isDemo == true)
-                          AppStatusBadge(
-                            label: 'Demo data',
-                            color: context.appColors.info,
-                          ),
+                        // if (vm.data?.isDemo == true)
+                        //   AppStatusBadge(
+                        //     label: 'Demo data',
+                        //     color: context.appColors.info,
+                        //   ),
                       ],
                     ),
                     if (name != null && name.isNotEmpty) ...[
@@ -101,13 +139,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(height: 12),
                       ],
-                      if (vm.data!.isDemo) ...[
-                        Text(
-                          'Sample figures only · not live ERP data',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 8),
-                      ],
+                      // if (vm.data!.isDemo) ...[
+                      //   Text(
+                      //     'Sample figures only · not live ERP data',
+                      //     style: Theme.of(context).textTheme.bodySmall,
+                      //   ),
+                      //   const SizedBox(height: 8),
+                      // ],
                       if (vm.isEmpty)
                         const AppEmptyState(
                           icon: AppIconName.purchase,
@@ -159,28 +197,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<Widget> _overview(BuildContext context, DashboardData data) => [
-    DashboardSummaryCard(data: data),
-    const SizedBox(height: 8),
-    _ResponsivePair(
-      children: [
-        DashboardKpiCard(
-          label: 'Draft purchases',
-          value: data.summary.draftCount,
-          icon: AppIconName.purchase,
-        ),
-        DashboardKpiCard(
-          label: 'Submitted purchases',
-          value: data.summary.submittedCount,
-          icon: AppIconName.success,
-        ),
-      ],
-    ),
-    const SizedBox(height: 12),
-    Text(
-      'Products · ${data.summary.productCount}',
-      style: Theme.of(context).textTheme.titleMedium,
+    DashboardSummaryCard(
+      data: _purchaseTotalData(data),
+      dateRange: _purchaseDateRange,
+      onSelectDateRange: _selectPurchaseDateRange,
+      onClearDateRange: () => setState(() => _purchaseDateRange = null),
     ),
     const SizedBox(height: 8),
+    // _ResponsivePair(
+    //   children: [
+    //     DashboardKpiCard(
+    //       label: 'Draft purchases',
+    //       value: data.summary.draftCount,
+    //       icon: AppIconName.purchase,
+    //     ),
+    //     DashboardKpiCard(
+    //       label: 'Submitted purchases',
+    //       value: data.summary.submittedCount,
+    //       icon: AppIconName.success,
+    //     ),
+    //   ],
+    // ),
+    // const SizedBox(height: 12),
+    // Text(
+    //   'Products · ${data.summary.productCount}',
+    //   style: Theme.of(context).textTheme.titleMedium,
+    // ),
+
     _ResponsivePair(
       children: [
         for (final product in data.products)
@@ -192,37 +235,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
       ],
     ),
-    const SizedBox(height: 12),
-    Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 12,
-      children: [
-        Text(
-          'Recent purchases',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        TextButton(
-          onPressed: () => context.goNamed(RouteNames.pointOfPurchase),
-          child: const Text('View purchases'),
-        ),
-      ],
-    ),
-    for (final purchase in data.recentPurchases)
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: RecentPurchaseTile(
-          purchase: purchase,
-          productName: data.productName(purchase.productId),
-          currencySymbol: data.currencySymbol,
-          onTap: purchase.documentName == null
-              ? null
-              : () => context.pushNamedOnce(
-                  RouteNames.pointOfPurchaseDetail,
-                  pathParameters: {'documentName': purchase.documentName!},
-                ),
-        ),
+
+    const SizedBox(height: 8),
+    AppCard(
+      title: 'Invoice overview',
+      subtitle: 'Sample invoice details',
+      child: _ResponsivePair(
+        children: const [
+          DashboardKpiCard(
+            label: 'Total invoices',
+            value: 12,
+            icon: AppIconName.purchase,
+          ),
+          DashboardKpiCard(
+            label: 'Paid invoices',
+            value: 8,
+            icon: AppIconName.success,
+          ),
+          DashboardKpiCard(
+            label: 'Unpaid invoices',
+            value: 4,
+            icon: AppIconName.purchase,
+          ),
+        ],
       ),
+    ),
+
+    const SizedBox(height: 12),
+    const DashboardPurchaseChart(),
+    const SizedBox(height: 12),
+    const DashboardRevenueChart(),
+    const SizedBox(height: 12),
+
+    // const SizedBox(height: 12),
+    // Wrap(
+    //   alignment: WrapAlignment.spaceBetween,
+    //   crossAxisAlignment: WrapCrossAlignment.center,
+    //   spacing: 12,
+    //   children: [
+    //     Text(
+    //       'Recent purchases',
+    //       style: Theme.of(context).textTheme.titleMedium,
+    //     ),
+    //     TextButton(
+    //       onPressed: () => context.goNamed(RouteNames.pointOfPurchase),
+    //       child: const Text('View purchases'),
+    //     ),
+    //   ],
+    // ),
+    // for (final purchase in data.recentPurchases)
+    //   Padding(
+    //     padding: const EdgeInsets.only(bottom: 8),
+    //     child: RecentPurchaseTile(
+    //       purchase: purchase,
+    //       productName: data.productName(purchase.productId),
+    //       currencySymbol: data.currencySymbol,
+    //       onTap: purchase.documentName == null
+    //           ? null
+    //           : () => context.pushNamedOnce(
+    //               RouteNames.pointOfPurchaseDetail,
+    //               pathParameters: {'documentName': purchase.documentName!},
+    //             ),
+    //     ),
+    //   ),
   ];
 }
 

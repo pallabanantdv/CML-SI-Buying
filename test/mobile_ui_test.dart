@@ -641,9 +641,12 @@ void main() {
       await fill('Weight (kg)', '25');
       await fill('Rate/kg *', '10');
       await fill(r'Freight Amount ($)', '3');
+      await fill(r'Others ($)', '2');
+      await fill(r'Sea Fare ($)', '4');
+      await fill('Bag tare (kg)', '1.5');
       await fill(r'Advances Deduction ($)', '5');
       await select('Mode of Payment', 'Cash');
-      await fill(r'Payment Amount ($)', '242');
+      await fill(r'Payment Amount ($)', '236');
       await select('Default Accepted Warehouse *', 'Main warehouse');
       await tester.tap(find.text('Save purchase'));
       await tester.pumpAndSettle();
@@ -652,10 +655,14 @@ void main() {
       expect(data.created!['company'], 'C1');
       expect(data.created!['custom_product_type'], 'Cocoa');
       expect(data.created!['grand_total'], 250);
-      expect(data.created!['total_deduction'], 8);
-      expect(data.created!['net_payable'], 242);
+      expect(data.created!['total_amount'], 250);
+      expect(data.created!['ship_payment'], 9);
+      expect(data.created!['total_deduction'], 9);
+      expect(data.created!['tare15kgsbag'], 1.5);
+      expect(data.created!['net_payable'], 236);
       expect(data.created!['advances'], 5);
-      expect(data.created!['supplier_advance_allocation'], [
+      expect(data.created!.containsKey('supplier_advance_allocation'), isFalse);
+      expect(data.created!['advance'], [
         {
           'reference_name': 'PAY-TEST',
           'remarks': '',

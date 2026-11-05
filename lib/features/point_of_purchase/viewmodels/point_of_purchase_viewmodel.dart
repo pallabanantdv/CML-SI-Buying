@@ -6,7 +6,8 @@ import '../../../core/diagnostics/diagnostic_notifier.dart';
 import '../../../core/errors/app_exception.dart';
 import '../models/point_of_purchase_model.dart';
 import '../models/supplier_advance.dart';
-import '../repositories/point_of_purchase_repository.dart';
+
+import 'package:cml_si_buying/features/point_of_purchase/repositories/point_of_purchase_repository.dart';
 
 class PointOfPurchaseViewModel extends DiagnosticNotifier {
   PointOfPurchaseViewModel(this.repository) {
@@ -36,6 +37,8 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
   void resetSession() {
     ++_sessionId;
     _resetSupplierAdvances();
+    _isSubmitting = false;
+    _submitErrorMessage = null;
     _isCreating = false;
     _createErrorMessage = null;
     _isLoadingCreateOptions = false;
@@ -297,6 +300,56 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> getPurchaseForEditing(String name) =>
+      repository.getPointOfPurchase(name);
+
+  Future<Map<String, String?>> getWarehouseAccounts(String warehouse) =>
+      repository.getWarehouseAccounts(warehouse);
+
+  Future<bool> updatePointOfPurchase(
+    String name,
+    Map<String, dynamic> fields,
+  ) async {
+    if (isDisposed || _isCreating || _isSubmitting) return false;
+    final session = _sessionId;
+    _isCreating = true;
+    _createErrorMessage = null;
+    notifyListeners();
+    try {
+      final updated = await repository.updatePointOfPurchase(name, fields);
+      if (isDisposed || session != _sessionId) return false;
+      if (_selectedName == name) {
+        ++_detailRequestId;
+        _isLoadingDetail = false;
+        _selectedRecord = updated;
+      }
+      _records = [
+        for (final record in _records)
+          if (record.name == name)
+            PointOfPurchaseModel.fromJson(updated)
+          else
+            record,
+      ];
+      unawaited(loadPointOfPurchases());
+      return true;
+    } on AppException catch (error) {
+      if (!isDisposed && session == _sessionId) {
+        _createErrorMessage = error.message;
+      }
+      return false;
+    } catch (_) {
+      if (!isDisposed && session == _sessionId) {
+        _createErrorMessage = 'Unable to update this purchase.';
+      }
+      return false;
+    } finally {
+      if (!isDisposed && session == _sessionId) {
+        _isCreating = false;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<bool> createPointOfPurchase(Map<String, dynamic> fields) async {
     if (_isCreating) return false;
     final sessionId = _sessionId;
@@ -365,6 +418,63 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
     }
   }
 
+  bool _isSubmitting = false;
+  String? _submitErrorMessage;
+  bool get isSubmitting => _isSubmitting;
+  String? get submitErrorMessage => _submitErrorMessage;
+
+  Future<bool> submitPointOfPurchase(String documentName) async {
+    if (isDisposed || _isSubmitting) return false;
+    if (_selectedName != documentName ||
+        int.tryParse('${_selectedRecord?['docstatus']}') != 0) {
+      _submitErrorMessage = 'Only draft purchases can be submitted.';
+      notifyListeners();
+      return false;
+    }
+    final session = _sessionId;
+    _isSubmitting = true;
+    _submitErrorMessage = null;
+    ++_detailRequestId; // A previous draft read must not overwrite the result.
+    _isLoadingDetail = false;
+    notifyListeners();
+    try {
+      final submitted = await repository.submitPointOfPurchase(documentName);
+      if (isDisposed || session != _sessionId) return false;
+      if (_selectedName == documentName) {
+        ++_detailRequestId;
+        _isLoadingDetail = false;
+        _selectedRecord = submitted;
+        _detailErrorMessage = null;
+      }
+      _records = [
+        for (final record in _records)
+          if (record.name == documentName)
+            PointOfPurchaseModel.fromJson(submitted)
+          else
+            record,
+      ];
+      // Refresh related lists and advance balances after confirmed submission.
+      unawaited(loadPointOfPurchases());
+      _resetSupplierAdvances();
+      return true;
+    } on AppException catch (error) {
+      if (!isDisposed && session == _sessionId) {
+        _submitErrorMessage = error.message;
+      }
+      return false;
+    } catch (_) {
+      if (!isDisposed && session == _sessionId) {
+        _submitErrorMessage = 'Unable to confirm submission. Refresh the record before trying again.';
+      }
+      return false;
+    } finally {
+      if (!isDisposed && session == _sessionId) {
+        _isSubmitting = false;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> loadPointOfPurchase(
     String documentName, {
     bool force = true,
@@ -374,7 +484,10 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
     }
     AppDiagnostics.write('[$runtimeType] detail load started');
     final requestId = ++_detailRequestId;
-    if (_selectedName != documentName) _selectedRecord = null;
+    if (_selectedName != documentName) {
+      _selectedRecord = null;
+      _submitErrorMessage = null;
+    }
     _selectedName = documentName;
     _detailErrorMessage = null;
     _isLoadingDetail = true;

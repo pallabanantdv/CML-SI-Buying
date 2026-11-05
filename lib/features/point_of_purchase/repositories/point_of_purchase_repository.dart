@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../core/cache/cache_manager.dart';
 import '../../../config/constants/api_endpoints.dart';
 import '../../../core/errors/app_exception.dart';
@@ -14,6 +16,42 @@ class PointOfPurchaseRepository {
   static const _doctype = 'Supplier Point Of Purchase';
   final FrappeResourceApi _resourceApi;
   CacheManager? get cache => _resourceApi.cache;
+
+  static const warehouseAccountFields = [
+    'cash_account',
+    'bank_account',
+    'inventory_account',
+    'supplier_payable_account',
+    'othershipping_account',
+    'advance_receivable_account',
+  ];
+
+  Future<Map<String, String?>> getWarehouseAccounts(String warehouse) async {
+    final methodApi = methods;
+    if (methodApi == null) {
+      throw const AppException('Warehouse account service is not configured.');
+    }
+    final response = await methodApi.callGetMethod(
+      'frappe.client.get_list',
+      params: {
+        'doctype': 'Warehouse wise Account Setting',
+        'filters': jsonEncode({'collection_location': warehouse}),
+        'fields': jsonEncode(warehouseAccountFields),
+        'limit_page_length': 1,
+      },
+    );
+    if (response is! List ||
+        response.length > 1 ||
+        (response.isNotEmpty && response.first is! Map)) {
+      throw const AppException(
+        'The server returned invalid warehouse accounts.',
+      );
+    }
+    final row = response.isEmpty ? <String, dynamic>{} : response.first as Map;
+    return {
+      for (final field in warehouseAccountFields) field: row[field]?.toString(),
+    };
+  }
 
   Future<List<SupplierAdvance>> getSupplierAdvances(String supplier) async {
     final methodApi = methods;
@@ -49,6 +87,121 @@ class PointOfPurchaseRepository {
 
   Future<Map<String, dynamic>> getPointOfPurchase(String documentName) =>
       _resourceApi.getDoc(_doctype, documentName);
+
+  /// Run Frappe's submit lifecycle, including server validations and permissions.
+  Future<Map<String, dynamic>> submitPointOfPurchase(
+    String documentName,
+  ) async {
+    final methodApi = methods;
+    if (methodApi == null) {
+      throw const AppException(
+        'Purchase submission service is not configured.',
+      );
+    }
+    if (cache?.connectivity.offline == true) {
+      throw const AppException(
+        'Internet access is required to submit a purchase.',
+      );
+    }
+    final generation = cache?.sessionGeneration;
+    // Read the current document from the server, bypassing the response cache.
+    final current = await methodApi.callGetMethod(
+      'frappe.client.get',
+      params: {'doctype': _doctype, 'name': documentName},
+    );
+    if (current is! Map ||
+        current['name'] != documentName ||
+        int.tryParse('${current['docstatus']}') != 0) {
+      throw const AppException(
+        'Only draft purchases can be submitted. Refresh this record and try again.',
+      );
+    }
+    final response = await methodApi.callPostMethod(
+      'frappe.client.submit',
+      data: {
+        'doc': jsonEncode({...current, 'doctype': _doctype}),
+      },
+    );
+    if (response is! Map ||
+        response['name'] != documentName ||
+        int.tryParse('${response['docstatus']}') != 1) {
+      throw const AppException(
+        'Submission could not be confirmed. Refresh the record to check its status.',
+      );
+    }
+    if (generation != cache?.sessionGeneration) {
+      throw const AppException('The account changed. Please reload.');
+    }
+    final submitted = Map<String, dynamic>.from(response);
+    final path =
+        '/api/resource/${Uri.encodeComponent(_doctype)}/${Uri.encodeComponent(documentName)}';
+    await cache?.invalidate(path);
+    if (generation != cache?.sessionGeneration) {
+      throw const AppException('The account changed. Please reload.');
+    }
+    // Persist the actual server-confirmed document in its normal GET cache.
+    await cache?.read(path, null, () async => {'data': submitted});
+    return submitted;
+  }
+
+  Future<Map<String, dynamic>> updatePointOfPurchase(
+    String documentName,
+    Map<String, dynamic> fields,
+  ) async {
+    final methodApi = methods;
+    if (methodApi == null) {
+      throw const AppException('Purchase update service is not configured.');
+    }
+    if (cache?.connectivity.offline == true) {
+      throw const AppException(
+        'Internet access is required to update a purchase.',
+      );
+    }
+    final generation = cache?.sessionGeneration;
+    final current = await methodApi.callGetMethod(
+      'frappe.client.get',
+      params: {'doctype': _doctype, 'name': documentName},
+    );
+    if (current is! Map ||
+        current['name'] != documentName ||
+        int.tryParse('${current['docstatus']}') != 0) {
+      throw const AppException(
+        'Only draft purchases can be updated. Refresh this record.',
+      );
+    }
+    if (fields['modified'] != null &&
+        current['modified'] != fields['modified']) {
+      throw const AppException(
+        'This purchase has changed on the server. Reopen it before updating.',
+      );
+    }
+    final payload = Map<String, dynamic>.from(fields)
+      ..remove('name')
+      ..remove('doctype')
+      ..remove('docstatus')
+      ..remove('naming_series');
+    if (generation != cache?.sessionGeneration) {
+      throw const AppException('The account changed. Please reload.');
+    }
+    final updated = await _resourceApi.updateDoc(
+      _doctype,
+      documentName,
+      payload,
+    );
+    if (updated['name'] != documentName ||
+        int.tryParse('${updated['docstatus']}') != 0) {
+      throw const AppException(
+        'The update could not be confirmed. Refresh the purchase to check its status.',
+      );
+    }
+    if (generation != cache?.sessionGeneration) {
+      throw const AppException('The account changed. Please reload.');
+    }
+    final path =
+        '/api/resource/${Uri.encodeComponent(_doctype)}/${Uri.encodeComponent(documentName)}';
+    await cache?.read(path, null, () async => {'data': updated});
+    return updated;
+  }
 
   Future<List<Map<String, dynamic>>> getSupplierOptions() async => _toOptions(
     await _resourceApi.getDocList(

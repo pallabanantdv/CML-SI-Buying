@@ -6,17 +6,45 @@ import '../../../shared/widgets/app_svg_icon.dart';
 import '../models/dashboard_data.dart';
 
 class DashboardSummaryCard extends StatelessWidget {
-  const DashboardSummaryCard({super.key, required this.data});
+  const DashboardSummaryCard({
+    super.key,
+    required this.data,
+    this.dateRange,
+    this.onSelectDateRange,
+    this.onClearDateRange,
+  });
   final DashboardData data;
+  final DateTimeRange? dateRange;
+  final VoidCallback? onSelectDateRange;
+  final VoidCallback? onClearDateRange;
   @override
   Widget build(BuildContext context) => AppCard(
     tone: AppCardTone.primary,
     title: 'Total purchase value',
-    subtitle: data.periodLabel,
+    subtitle: dateRange == null ? 'All dates' : data.periodLabel,
     leading: const AppSvgIcon(icon: AppIconName.purchase),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (onSelectDateRange != null) ...[
+          InkWell(
+            onTap: onSelectDateRange,
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: 'Date range',
+                suffixIcon: dateRange == null
+                    ? const Icon(Icons.date_range_outlined)
+                    : IconButton(
+                        tooltip: 'Show all dates',
+                        onPressed: onClearDateRange,
+                        icon: const Icon(Icons.clear),
+                      ),
+              ),
+              child: Text(dateRange == null ? 'All dates' : data.periodLabel),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         Text(
           '${data.currencySymbol}${AppNumberFormat.amount(data.summary.totalValue)}',
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(

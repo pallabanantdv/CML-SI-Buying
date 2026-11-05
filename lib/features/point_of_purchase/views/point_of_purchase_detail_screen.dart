@@ -15,6 +15,10 @@ import '../../../shared/widgets/app_card_heading.dart';
 import '../../../shared/widgets/app_info_row.dart';
 import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_error_widget.dart';
+import '../../../shared/widgets/app_button.dart';
+import '../../../core/navigation/app_navigation.dart';
+import '../../../config/routes/route_names.dart';
+import '../../../shared/widgets/app_snackbar.dart';
 import '../../../shared/widgets/skeleton/skeleton.dart';
 import '../widgets/purchase_detail_skeleton.dart';
 import '../../../shared/widgets/app_expandable_section.dart';
@@ -60,7 +64,14 @@ class _PointOfPurchaseDetailScreenState
   @override
   Widget build(BuildContext context) => Consumer<PointOfPurchaseViewModel>(
     builder: (context, viewModel, _) => Scaffold(
-      appBar: const AppAppBar(title: AppHeaderTitle(title: 'Purchase details')),
+      appBar: AppAppBar(
+        title: const AppHeaderTitle(title: 'Purchase details'),
+        bottom:
+            viewModel.selectedName == widget.documentName &&
+                int.tryParse('${viewModel.selectedRecord?['docstatus']}') == 0
+            ? _headerActions(viewModel)
+            : null,
+      ),
       body: SafeArea(
         top: false,
         child: Center(
@@ -84,6 +95,92 @@ class _PointOfPurchaseDetailScreenState
       ),
     ),
   );
+
+  PreferredSizeWidget _headerActions(PointOfPurchaseViewModel vm) {
+    final width = (MediaQuery.sizeOf(context).width - 32).clamp(1.0, 360.0);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: 'Update',
+        style: Theme.of(context).textTheme.labelLarge,
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout(maxWidth: ((width - 8) / 2 - 32).clamp(1.0, double.infinity));
+    final height = (painter.height + 16).clamp(48.0, double.infinity);
+    painter.dispose();
+    final busy = vm.isSubmitting || vm.isCreating || vm.isLoadingDetail;
+    return PreferredSize(
+      preferredSize: Size.fromHeight(height + 8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'Update',
+                    variant: AppButtonVariant.outlined,
+                    onPressed: busy ? null : () => _update(vm),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: AppButton(
+                    label: 'Save',
+                    isLoading: vm.isSubmitting,
+                    onPressed: busy || vm.isRefreshingDetail
+                        ? null
+                        : () => _submit(vm),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _update(PointOfPurchaseViewModel viewModel) async {
+    if (viewModel.isSubmitting ||
+        viewModel.isCreating ||
+        viewModel.selectedName != widget.documentName ||
+        viewModel.selectedRecord == null) {
+      return;
+    }
+    final updated = await context.pushNamedOnce<bool>(
+      RouteNames.createPointOfPurchase,
+      queryParameters: {'documentName': widget.documentName},
+      extra: Map<String, dynamic>.from(viewModel.selectedRecord!),
+    );
+    if (!mounted || updated != true) return;
+    await viewModel.loadPointOfPurchase(widget.documentName);
+    if (mounted) {
+      AppSnackbar.show(
+        context,
+        'Purchase updated successfully',
+        type: AppMessageType.success,
+      );
+    }
+  }
+
+  Future<void> _submit(PointOfPurchaseViewModel viewModel) async {
+    if (viewModel.isSubmitting) return;
+    final name = widget.documentName;
+    final success = await viewModel.submitPointOfPurchase(name);
+    if (!mounted || widget.documentName != name) return;
+    AppSnackbar.show(
+      context,
+      success
+          ? 'Purchase submitted successfully'
+          : viewModel.submitErrorMessage ?? 'Unable to submit this purchase.',
+      type: success ? AppMessageType.success : AppMessageType.error,
+    );
+  }
 
   Widget _buildContent(
     BuildContext context,
@@ -203,7 +300,7 @@ class _DynamicDetailSection extends StatelessWidget {
 String _tableTitle(String name) => switch (name) {
   'supplier_pop_item' => 'Purchase items',
   'total_bag' => 'Bags and weight',
-  'supplier_advance_allocation' => 'Advance allocations',
+  'advance' || 'supplier_advance_allocation' => 'Advance allocations',
   'pop_cash_payment' => 'Cash payments',
   _ => _humanize(name),
 };
@@ -488,7 +585,7 @@ const _labels = <String, String>{
   'custom_island': 'Island',
   'mobile_no': 'Mobile number',
   'custom_contact_number': 'Contact number',
-  'tare15kgsbag': '15 kg bag tare',
+  'tare15kgsbag': 'Tare per bag (kg)',
   'total_amount': 'Total amount',
   'instant_paid': 'Instant payment',
   'freight': 'Freight',

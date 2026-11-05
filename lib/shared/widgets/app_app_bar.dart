@@ -9,14 +9,17 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     this.actions,
     this.centerTitle,
+    this.bottom,
   });
 
   final Widget title;
   final List<Widget>? actions;
   final bool? centerTitle;
+  final PreferredSizeWidget? bottom;
 
   @override
-  Size get preferredSize => const Size.fromHeight(56);
+  Size get preferredSize =>
+      Size.fromHeight(56 + (bottom?.preferredSize.height ?? 0));
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +53,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: actions,
+      bottom: bottom,
     );
   }
 }
