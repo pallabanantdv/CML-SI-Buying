@@ -16,7 +16,9 @@ import '../../../shared/widgets/app_dropdown.dart';
 import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../../../shared/widgets/app_text_field.dart';
+import '../../../shared/widgets/skeleton/skeleton.dart';
 import '../viewmodels/point_of_purchase_viewmodel.dart';
+import '../models/calculated_purchase_item.dart';
 
 class CreatePointOfPurchaseScreen extends StatefulWidget {
   const CreatePointOfPurchaseScreen({super.key});
@@ -28,18 +30,23 @@ class CreatePointOfPurchaseScreen extends StatefulWidget {
 
 class _CreatePointOfPurchaseScreenState
     extends State<CreatePointOfPurchaseScreen> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
+  var _purchaseItemKey = GlobalKey<FormFieldState<bool>>();
   final List<_BagDraft> _bags = [_BagDraft(1)];
-  final List<_ItemDraft> _items = [_ItemDraft()];
-  final List<_AdvanceDraft> _advances = [];
   final List<_CashPaymentDraft> _cashPayments = [];
   final Map<String, TextEditingController> _fields = {};
   final Map<String, String?> _links = {};
   String? _supplier;
   String? _deliveryType;
+  String? _productType;
   DateTime _purchaseDate = DateTime.now();
   TimeOfDay _purchaseTime = TimeOfDay.now();
   bool _instantPaid = false;
+  bool _optionsRequested = false;
+
+  bool _optionsLoading(PointOfPurchaseViewModel viewModel) =>
+      !_optionsRequested ||
+      (viewModel.isLoadingCreateOptions && !viewModel.hasCreateOptions);
   int _nextBagNumber = 2;
 
   @override
@@ -52,7 +59,9 @@ class _CreatePointOfPurchaseScreenState
       if (!mounted) return;
 
       final viewModel = context.read<PointOfPurchaseViewModel>();
+      _optionsRequested = true;
       viewModel.clearCreateError();
+      viewModel.clearSupplierAdvances();
       unawaited(viewModel.loadCreateOptions());
     });
   }
@@ -60,12 +69,6 @@ class _CreatePointOfPurchaseScreenState
   @override
   void dispose() {
     for (final row in _bags) {
-      row.dispose();
-    }
-    for (final row in _items) {
-      row.dispose();
-    }
-    for (final row in _advances) {
       row.dispose();
     }
     for (final row in _cashPayments) {
@@ -93,76 +96,97 @@ class _CreatePointOfPurchaseScreenState
             constraints: const BoxConstraints(
               maxWidth: AppDimensions.detailContentMaxWidth,
             ),
-            child: Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.all(AppDimensions.pageGutter),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (viewModel.isLoadingCreateOptions) ...[
-                      const LinearProgressIndicator(),
-                      const SizedBox(height: AppSpacing.sectionGap),
-                    ],
-                    if (viewModel.createOptionsError != null) ...[
-                      _MessagePanel(
-                        message: viewModel.createOptionsError!,
-                        isError: true,
-                        action: TextButton(
-                          onPressed: () =>
-                              unawaited(viewModel.loadCreateOptions()),
-                          child: const Text('Retry'),
+            child: SkeletonShimmer(
+              enabled: _optionsLoading(viewModel),
+              placeholdersOnly: false,
+              label: 'Loading purchase form options...',
+              child: Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.all(AppDimensions.pageGutter),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (viewModel.createOptionsError != null) ...[
+                        _MessagePanel(
+                          message: viewModel.createOptionsError!,
+                          isError: true,
+                          action: TextButton(
+                            onPressed: () =>
+                                unawaited(viewModel.loadCreateOptions()),
+                            child: const Text('Retry'),
+                          ),
                         ),
+                        const SizedBox(height: AppSpacing.sectionGap),
+                      ],
+                      _supplierSection(viewModel),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _deliverySection(viewModel),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _buildBagTable(),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _pricingSection(viewModel),
+
+                      if (_fieldText('advances').isNotEmpty &&
+                          viewModel.validateAdvanceDeduction(
+                                _fieldText('advances'),
+                              ) ==
+                              null &&
+                          _number(_fieldText('advances')) > 0) ...[
+                        const SizedBox(height: AppSpacing.sectionGap),
+                        _buildAdvanceTable(viewModel),
+                      ],
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _buildItemTable(viewModel),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      // const AppCard(
+                      //   tone: AppCardTone.info,
+                      //   showAccentBar: false,
+                      //   title: 'Invoice advances',
+                      //   leading: AppSvgIcon(icon: AppIconName.inventory),
+                      //   child: Text(
+                      //     'This read-only table is filled automatically by the ERP when an invoice advance applies.',
+                      //   ),
+                      // ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _paymentAndAccountsSection(viewModel),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      // _erpFieldsSection(viewModel),
+                      if (_instantPaid) ...[
+                        const SizedBox(height: AppSpacing.sectionGap),
+                        _buildCashPaymentTable(viewModel),
+                      ],
+                      if (viewModel.createErrorMessage != null) ...[
+                        const SizedBox(height: AppSpacing.sectionGap),
+                        _MessagePanel(
+                          message: viewModel.createErrorMessage!,
+                          isError: true,
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TextButton(
+                            onPressed: viewModel.isCreating
+                                ? null
+                                : () => context.pop(),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: AppSpacing.small),
+                          TextButton(
+                            onPressed: viewModel.isCreating
+                                ? null
+                                : () => _resetForm(viewModel),
+                            child: const Text('Reset'),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: AppSpacing.sectionGap),
                     ],
-                    _supplierSection(viewModel),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    _deliverySection(viewModel),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    _buildBagTable(),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    _pricingSection(),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    _buildItemTable(viewModel),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    _buildAdvanceTable(viewModel),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    const AppCard(
-                      tone: AppCardTone.info,
-                      showAccentBar: false,
-                      title: 'Invoice advances',
-                      leading: AppSvgIcon(icon: AppIconName.inventory),
-                      child: Text(
-                        'This read-only table is filled automatically by the ERP when an invoice advance applies.',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    _paymentAndAccountsSection(viewModel),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    _erpFieldsSection(viewModel),
-                    if (_instantPaid) ...[
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      _buildCashPaymentTable(viewModel),
-                    ],
-                    if (viewModel.createErrorMessage != null) ...[
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      _MessagePanel(
-                        message: viewModel.createErrorMessage!,
-                        isError: true,
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    TextButton(
-                      onPressed: viewModel.isCreating
-                          ? null
-                          : () => context.pop(),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -172,64 +196,112 @@ class _CreatePointOfPurchaseScreenState
     ),
   );
 
+  void _resetForm(PointOfPurchaseViewModel viewModel) {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      for (final controller in _fields.values) {
+        controller.clear();
+      }
+      _fields['tare15kgsbag']?.text = '0';
+      for (final bag in _bags) {
+        bag.dispose();
+      }
+      _bags
+        ..clear()
+        ..add(_BagDraft(1));
+      for (final payment in _cashPayments) {
+        payment.dispose();
+      }
+      _cashPayments.clear();
+      _nextBagNumber = 2;
+      _links.clear();
+      _supplier = null;
+      _deliveryType = null;
+      _productType = null;
+      _purchaseDate = DateTime.now();
+      _purchaseTime = TimeOfDay.now();
+      _instantPaid = false;
+      _formKey = GlobalKey<FormState>();
+      _purchaseItemKey = GlobalKey<FormFieldState<bool>>();
+    });
+    viewModel.clearCreateError();
+    viewModel.clearSupplierAdvances();
+  }
+
   Widget _supplierSection(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.primary,
     showAccentBar: false,
     title: 'Supplier and collection',
     leading: const AppSvgIcon(icon: AppIconName.supplier),
     child: _fieldGrid([
-      _supplierField(viewModel),
-      _readOnlyValue('Supplier Name', _fieldText('supplier_name1')),
-      _textField('village', 'Village', required: true),
-      _textField('province', 'Province', required: true),
-      _readOnlyValue('Supplier Type', _fieldText('supplier_type')),
+      _selectField(
+        label: 'Product Type',
+        value: _productType,
+        options: const ['Copra', 'Cocoa'],
+        onChanged: (value) {
+          setState(() => _productType = value);
+          _purchaseItemKey.currentState?.didChange(true);
+        },
+      ),
       _linkField(
         viewModel,
         'collection_location',
         'Collection Location',
         'Warehouse',
       ),
+      _supplierField(viewModel),
+      _readOnlyValue('Supplier Name', _fieldText('supplier_name1')),
+      _textField('village', 'Village', required: true),
+      _textField('province', 'Province', required: true),
+      _readOnlyValue('Supplier Type', _fieldText('supplier_type')),
+
       _linkField(viewModel, 'island', 'Island', 'Island'),
       _textField('phonemobile_no', 'Phone/Mobile No.'),
     ]),
   );
 
-  Widget _supplierField(
-    PointOfPurchaseViewModel viewModel,
-  ) => AppDropdown<String>(
-    value: _supplier,
-    label: 'Supplier Code *',
-    hint: 'Select a supplier',
-    enabled: !viewModel.isLoadingCreateOptions,
-    items: _dropdownItems(viewModel.supplierOptions),
-    validator: (value) => value == null ? 'Select a supplier.' : null,
-    onChanged: (value) {
-      setState(() {
-        _supplier = value;
-        final selected = _findOption(viewModel.supplierOptions, value);
-        _controller('supplier_name1').text =
-            selected?['title']?.toString() ?? '';
-        _controller('supplier_type').text =
-            selected?['supplier_type']?.toString() ?? '';
-        _controller('village').text = selected?['village']?.toString() ?? '';
-        _controller('province').text = selected?['province']?.toString() ?? '';
-        _controller('phonemobile_no').text =
-            selected?['custom_contact_number']?.toString() ??
-            selected?['mobile_no']?.toString() ??
-            '';
-        final island = selected?['custom_island']?.toString();
-        if (island != null &&
-            viewModel
-                .linkOptions('Island')
-                .any((option) => option['value'] == island)) {
-          _links['island'] = island;
-        } else {
-          _links['island'] = null;
-        }
-      });
-      viewModel.clearCreateError();
-    },
-  );
+  Widget _supplierField(PointOfPurchaseViewModel viewModel) =>
+      _optionsLoading(viewModel) && viewModel.supplierOptions.isEmpty
+      ? const _OptionSkeleton(label: 'Supplier Code *')
+      : AppDropdown<String>(
+          value: _supplier,
+          label: 'Supplier Code *',
+          hint: 'Select a supplier',
+          enabled: !_optionsLoading(viewModel),
+          items: _dropdownItems(viewModel.supplierOptions),
+          validator: (value) => value == null ? 'Select a supplier.' : null,
+          onChanged: (value) {
+            if (value == _supplier) return;
+            setState(() {
+              _supplier = value;
+              _controller('advances').clear();
+              final selected = _findOption(viewModel.supplierOptions, value);
+              _controller('supplier_name1').text =
+                  selected?['title']?.toString() ?? '';
+              _controller('supplier_type').text =
+                  selected?['supplier_type']?.toString() ?? '';
+              _controller('village').text =
+                  selected?['village']?.toString() ?? '';
+              _controller('province').text =
+                  selected?['province']?.toString() ?? '';
+              _controller('phonemobile_no').text =
+                  selected?['custom_contact_number']?.toString() ??
+                  selected?['mobile_no']?.toString() ??
+                  '';
+              final island = selected?['custom_island']?.toString();
+              if (island != null &&
+                  viewModel
+                      .linkOptions('Island')
+                      .any((option) => option['value'] == island)) {
+                _links['island'] = island;
+              } else {
+                _links['island'] = null;
+              }
+            });
+            viewModel.clearCreateError();
+            unawaited(viewModel.loadSupplierAdvances(value));
+          },
+        );
 
   Widget _deliverySection(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.info,
@@ -259,7 +331,7 @@ class _CreatePointOfPurchaseScreenState
     ]),
   );
 
-  Widget _pricingSection() => AppCard(
+  Widget _pricingSection(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.warning,
     showAccentBar: false,
     title: 'Pricing and deductions',
@@ -290,146 +362,147 @@ class _CreatePointOfPurchaseScreenState
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         validator: _optionalNumber,
       ),
-      _readOnlyValue('Total Amount (\$)', _money(_itemTotal)),
-      _readOnlyValue('Grand Total (\$)', _money(_grandTotal)),
-      _readOnlyValue('Ship Payment (\$)', 'Calculated by ERP'),
-      _readOnlyValue('Total Deduction (\$)', _money(_deductionTotal)),
+      // _readOnlyValue('Total Amount (\$)', _money(_itemTotal)),
+      // _readOnlyValue('Grand Total (\$)', _money(_grandTotal)),
+      // _readOnlyValue('Ship Payment (\$)', 'Calculated by ERP'),
+      // _readOnlyValue('Total Deduction (\$)', _money(_deductionTotal)),
+
+      // _textField(
+      //   'net_payable',
+      //   'Net Payable (\$)',
+      //   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      //   validator: _optionalNumber,
+      // ),
+      _availableAdvance(viewModel),
       _textField(
         'advances',
         'Advances Deduction (\$)',
+        autovalidateMode: AutovalidateMode.always,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        validator: _optionalNumber,
+        validator: viewModel.validateAdvanceDeduction,
       ),
-      _textField(
-        'net_payable',
-        'Net Payable (\$)',
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        validator: _optionalNumber,
-      ),
-      _readOnlyValue('Available Advance (\$)', 'Calculated by ERP'),
     ]),
   );
 
-  Widget _paymentAndAccountsSection(PointOfPurchaseViewModel viewModel) =>
-      AppCard(
-        tone: AppCardTone.success,
-        showAccentBar: false,
-        title: 'Payment and accounts',
-        leading: const AppSvgIcon(icon: AppIconName.inventory),
-        child: Column(
-          children: [
-            _fieldGrid([
-              _linkField(
-                viewModel,
-                'mode_of_payment',
-                'Mode of Payment',
-                'Mode of Payment',
-                required: _grandTotal > 0,
-              ),
-              _textField(
-                'payment_amount',
-                'Payment Amount (\$)',
-                required: _grandTotal > 0,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                validator: _grandTotal > 0 ? _requiredNumber : _optionalNumber,
-              ),
-              _linkField(
-                viewModel,
-                'default_accepted_warehouse',
-                'Default Accepted Warehouse *',
-                'Warehouse',
-                required: true,
-              ),
-              _linkField(viewModel, 'vesel', 'Vessel', 'Supplier'),
-              _readOnlyValue(
-                'Vessel Name',
-                _findOption(
-                      viewModel.supplierOptions,
-                      _links['vesel'],
-                    )?['title']?.toString() ??
-                    '',
-              ),
-              // Row(
-              //   children: [
-              //     Expanded(
-              //       child: _linkField(
-              //         viewModel,
-              //         'bank_account',
-              //         'Bank Account',
-              //         'Account',
-              //       ),
-              //     ),
-              //     const SizedBox(width: AppSpacing.medium),
-              //     Expanded(
-              //       child: _linkField(
-              //         viewModel,
-              //         'cash_account',
-              //         'Cash Account',
-              //         'Account',
-              //       ),
-              //     ),
-              //   ],
-              // ),
+  Widget _paymentAndAccountsSection(
+    PointOfPurchaseViewModel viewModel,
+  ) => AppCard(
+    tone: AppCardTone.success,
+    showAccentBar: false,
+    title: 'Payment and accounts',
+    leading: const AppSvgIcon(icon: AppIconName.inventory),
+    child: Column(
+      children: [
+        _fieldGrid([
+          _linkField(
+            viewModel,
+            'mode_of_payment',
+            'Mode of Payment',
+            'Mode of Payment',
+            required: _grandTotal > 0,
+          ),
+          _textField(
+            'payment_amount',
+            'Payment Amount (\$)',
+            required: _grandTotal > 0,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            validator: _grandTotal > 0 ? _requiredNumber : _optionalNumber,
+          ),
+          _linkField(
+            viewModel,
+            'default_accepted_warehouse',
+            'Default Accepted Warehouse *',
+            'Warehouse',
+            required: true,
+          ),
+          _linkField(viewModel, 'vesel', 'Vessel', 'Supplier'),
+          _readOnlyValue(
+            'Vessel Name',
+            _findOption(
+                  viewModel.supplierOptions,
+                  _links['vesel'],
+                )?['title']?.toString() ??
+                '',
+          ),
+          // Row(
+          //   children: [
+          //     Expanded(
+          //       child: _linkField(
+          //         viewModel,
+          //         'bank_account',
+          //         'Bank Account',
+          //         'Account',
+          //       ),
+          //     ),
+          //     const SizedBox(width: AppSpacing.medium),
+          //     Expanded(
+          //       child: _linkField(
+          //         viewModel,
+          //         'cash_account',
+          //         'Cash Account',
+          //         'Account',
+          //       ),
+          //     ),
+          //   ],
+          // ),
 
-              _linkField(viewModel, 'bank_account', 'Bank Account', 'Account'),
-              _linkField(viewModel, 'cash_account', 'Cash Account', 'Account'),
+          // _linkField(viewModel, 'bank_account', 'Bank Account', 'Account'),
+          // _linkField(viewModel, 'cash_account', 'Cash Account', 'Account'),
 
-              // Row(
-              //   children: [
-              //     Expanded(
-              //       child: _linkField(
-              //         viewModel,
-              //         'inventory_account',
-              //         'Inventory Account',
-              //         'Account',
-              //       ),
-              //     ),
-              //     const SizedBox(width: AppSpacing.medium),
-              //     Expanded(
-              //       child: _linkField(
-              //         viewModel,
-              //         'advance_receivable_account',
-              //         'Advance Receivable Account',
-              //         'Account',
-              //       ),
-              //     ),
-              //   ],
-              // ),
-              _linkField(
-                viewModel,
-                'inventory_account',
-                'Inventory Account',
-                'Account',
-              ),
-              _linkField(
-                viewModel,
-                'advance_receivable_account',
-                'Advance Receivable Account',
-                'Account',
-              ),
-              _readOnlyValue('Paid To', 'Set by ERP'),
-              _readOnlyValue('Paid From', 'Set by ERP'),
-              _readOnlyValue('Other/Shipping Account', 'Set by ERP'),
-              _readOnlyValue('Amended From', 'Only for amended records'),
-            ]),
-            const SizedBox(height: AppSpacing.medium),
-            AppCheckbox(
-              value: _instantPaid,
-              label: 'Is Paid',
-              onChanged: (value) {
-                setState(() {
-                  _instantPaid = value ?? false;
-                  if (_instantPaid && _cashPayments.isEmpty) {
-                    _cashPayments.add(_CashPaymentDraft());
-                  }
-                });
-              },
-            ),
-          ],
+          // Row(
+          //   children: [
+          //     Expanded(
+          //       child: _linkField(
+          //         viewModel,
+          //         'inventory_account',
+          //         'Inventory Account',
+          //         'Account',
+          //       ),
+          //     ),
+          //     const SizedBox(width: AppSpacing.medium),
+          //     Expanded(
+          //       child: _linkField(
+          //         viewModel,
+          //         'advance_receivable_account',
+          //         'Advance Receivable Account',
+          //         'Account',
+          //       ),
+          //     ),
+          //   ],
+          // ),
+          // _linkField(
+          //   viewModel,
+          //   'inventory_account',
+          //   'Inventory Account',
+          //   'Account',
+          // ),
+          // _linkField(
+          //   viewModel,
+          //   'advance_receivable_account',
+          //   'Advance Receivable Account',
+          //   'Account',
+          // ),
+          // _readOnlyValue('Paid To', 'Set by ERP'),
+          // _readOnlyValue('Paid From', 'Set by ERP'),
+          // _readOnlyValue('Other/Shipping Account', 'Set by ERP'),
+          // _readOnlyValue('Amended From', 'Only for amended records'),
+        ]),
+        const SizedBox(height: AppSpacing.medium),
+        AppCheckbox(
+          value: _instantPaid,
+          label: 'Is Paid',
+          onChanged: (value) {
+            setState(() {
+              _instantPaid = value ?? false;
+              if (_instantPaid && _cashPayments.isEmpty) {
+                _cashPayments.add(_CashPaymentDraft());
+              }
+            });
+          },
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _erpFieldsSection(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.neutral,
@@ -541,12 +614,14 @@ class _CreatePointOfPurchaseScreenState
     String label, {
     bool required = false,
     String? initialValue,
+    AutovalidateMode? autovalidateMode,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) => AppTextField(
     controller: _controller(fieldname, initialValue: initialValue),
     label: label,
     required: required,
+    autovalidateMode: autovalidateMode,
     keyboardType: keyboardType,
     validator: validator ?? (required ? _required : null),
     onChanged: (_) {
@@ -565,18 +640,31 @@ class _CreatePointOfPurchaseScreenState
     final options = doctype == 'Supplier'
         ? viewModel.supplierOptions
         : viewModel.linkOptions(doctype);
+    if (_optionsLoading(viewModel) && options.isEmpty) {
+      return _OptionSkeleton(label: label);
+    }
+    if (fieldname == 'company' &&
+        _links[fieldname] == null &&
+        options.isNotEmpty) {
+      _links[fieldname] = options.first['value']?.toString();
+    }
     return AppDropdown<String>(
       value: _links[fieldname],
       label: label,
       hint: 'Select ${label.replaceAll(' *', '').toLowerCase()}',
-      enabled: !viewModel.isLoadingCreateOptions,
+      enabled: !_optionsLoading(viewModel),
       items: _dropdownItems(options),
       validator: required
           ? (value) =>
                 value == null ? 'Select ${label.replaceAll(' *', '')}.' : null
           : null,
       onChanged: (value) {
-        setState(() => _links[fieldname] = value);
+        setState(() {
+          _links[fieldname] = value;
+          if (fieldname == 'collection_location') {
+            _links['default_accepted_warehouse'] = value;
+          }
+        });
         viewModel.clearCreateError();
       },
     );
@@ -644,25 +732,26 @@ class _CreatePointOfPurchaseScreenState
     return null;
   }
 
-  double get _itemTotal =>
-      _items.fold<double>(0, (sum, row) => sum + row.amount);
+  double _calculationValue(String value) {
+    final number = double.tryParse(value.trim());
+    return number != null && number.isFinite && number >= 0 ? number : 0;
+  }
+
+  double get _ratePerKg => _calculationValue(_fieldText('rate'));
+  double get _itemTotal => _grossWeight * _ratePerKg;
 
   double get _grandTotal => _itemTotal;
 
   double get _grossWeight => _bags.fold<double>(
     0,
-    (sum, row) => sum + (double.tryParse(row.weight.text.trim()) ?? 0),
+    (sum, row) => sum + _calculationValue(row.weight.text),
   );
 
   double get _deductionTotal =>
       _number(_fieldText('freight')) +
       _number(_fieldText('others')) +
       _number(_fieldText('sea_fare')) +
-      _number(_fieldText('advances')) +
-      _advances.fold<double>(
-        0,
-        (sum, row) => sum + _number(row.allocated.text),
-      );
+      _number(_fieldText('advances'));
 
   String _money(double value) => value.toStringAsFixed(2);
 
@@ -737,179 +826,213 @@ class _CreatePointOfPurchaseScreenState
     ),
   );
 
-  Widget _buildItemTable(PointOfPurchaseViewModel viewModel) => AppCard(
-    tone: AppCardTone.primary,
-    showAccentBar: false,
-    title: 'Purchase items',
-    subtitle: '${_items.length} ${_items.length == 1 ? 'row' : 'rows'}',
-    leading: const AppSvgIcon(icon: AppIconName.purchase),
-    trailing: _AddRowButton(
-      onPressed: () => setState(() => _items.add(_ItemDraft())),
-    ),
-    child: Column(
-      children: [
-        for (var index = 0; index < _items.length; index++) ...[
-          if (index > 0) const SizedBox(height: AppSpacing.medium),
-          _EditorRow(
-            title: 'Item ${index + 1}',
-            onRemove: _items.length == 1
-                ? null
-                : () => setState(() => _items.removeAt(index).dispose()),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AppDropdown<String>(
-                  value: _items[index].itemCode,
-                  label: 'Item *',
-                  hint: 'Select an item',
-                  enabled: !viewModel.isLoadingCreateOptions,
-                  items: [
-                    for (final option in viewModel.itemOptions)
-                      DropdownMenuItem<String>(
-                        value: option['value'] as String,
-                        child: Text(
-                          option['label'] as String,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  validator: (value) =>
-                      value == null ? 'Select an item.' : null,
-                  onChanged: (value) => setState(() {
-                    _items[index].itemCode = value;
-                    final stockUom = _findOption(
-                      viewModel.itemOptions,
-                      value,
-                    )?['stock_uom']?.toString();
-                    _items[index].uom =
-                        viewModel
-                            .linkOptions('UOM')
-                            .any((option) => option['value'] == stockUom)
-                        ? stockUom
-                        : null;
-                    viewModel.clearCreateError();
-                  }),
-                ),
-                const SizedBox(height: AppSpacing.medium),
-                AppDropdown<String>(
-                  value: _items[index].uom,
-                  label: 'UOM *',
-                  hint: 'Select a unit',
-                  enabled: !viewModel.isLoadingCreateOptions,
-                  items: _dropdownItems(viewModel.linkOptions('UOM')),
-                  validator: (value) => value == null ? 'Select a unit.' : null,
-                  onChanged: (value) => setState(() {
-                    _items[index].uom = value;
-                  }),
-                ),
-                const SizedBox(height: AppSpacing.medium),
-                AppTextField(
-                  controller: _items[index].qty,
-                  label: 'Quantity',
-                  required: true,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  validator: _requiredNumber,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: AppSpacing.medium),
-                AppTextField(
-                  controller: _items[index].rate,
-                  label: 'Rate',
-                  required: true,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  validator: _requiredNumber,
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: AppSpacing.medium),
-                _AmountPreview(amount: _items[index].amount),
-              ],
-            ),
-          ),
-        ],
-      ],
-    ),
-  );
+  CalculatedPurchaseItem? _calculatedItem(PointOfPurchaseViewModel viewModel) {
+    final item = CalculatedPurchaseItem.matchProduct(
+      viewModel.itemOptions,
+      _productType,
+    );
+    if (item == null) return null;
+    return CalculatedPurchaseItem(
+      itemCode: item['value'].toString(),
+      itemName: CalculatedPurchaseItem.itemNameForProduct(_productType)!,
+      weightKg: _grossWeight,
+      ratePerKg: _ratePerKg,
+    );
+  }
 
-  Widget _buildAdvanceTable(PointOfPurchaseViewModel viewModel) => AppCard(
-    tone: AppCardTone.info,
-    showAccentBar: false,
-    title: 'Advance allocations',
-    subtitle: '${_advances.length} ${_advances.length == 1 ? 'row' : 'rows'}',
-    leading: const AppSvgIcon(icon: AppIconName.inventory),
-    trailing: _AddRowButton(
-      onPressed: () => setState(() => _advances.add(_AdvanceDraft())),
-    ),
-    child: _advances.isEmpty
-        ? Text(
-            'No advance allocations. Add a row if this purchase uses an advance.',
-            style: Theme.of(context).textTheme.bodySmall,
-          )
-        : Column(
-            children: [
-              for (var index = 0; index < _advances.length; index++) ...[
-                if (index > 0) const SizedBox(height: AppSpacing.medium),
-                _EditorRow(
-                  title: 'Allocation ${index + 1}',
-                  onRemove: () =>
-                      setState(() => _advances.removeAt(index).dispose()),
-                  child: Column(
-                    children: [
-                      AppDropdown<String>(
-                        value: _advances[index].journalEntry,
-                        label: 'Journal Entry',
-                        hint: 'Select a journal entry',
-                        enabled: !viewModel.isLoadingCreateOptions,
-                        items: [
-                          for (final option in viewModel.journalEntryOptions)
-                            DropdownMenuItem<String>(
-                              value: option['value'] as String,
-                              child: Text(
-                                option['label'] as String,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+  String? _purchaseItemError(PointOfPurchaseViewModel viewModel) {
+    if (_productType == null) {
+      return 'Select a product type to calculate its purchase item.';
+    }
+    if (_optionsLoading(viewModel)) {
+      return 'Wait for the purchase items to load.';
+    }
+    if (_calculatedItem(viewModel) == null) {
+      return 'The configured item ${CalculatedPurchaseItem.itemNameForProduct(_productType)} could not be uniquely found in the ERP item list.';
+    }
+    if (!_itemTotal.isFinite ||
+        !(_ratePerKg * 1000).isFinite ||
+        !_grossWeight.isFinite) {
+      return 'The bag weight or rate is too large.';
+    }
+    return null;
+  }
+
+  Widget _buildItemTable(PointOfPurchaseViewModel viewModel) => FormField<bool>(
+    key: _purchaseItemKey,
+    validator: (_) => _purchaseItemError(viewModel),
+    // Revalidate a previous submission error when the product or options change.
+    autovalidateMode: AutovalidateMode.onUserInteraction,
+    builder: (field) {
+      final item = _calculatedItem(viewModel);
+      return AppCard(
+        tone: AppCardTone.primary,
+        showAccentBar: false,
+        title: 'Supplier POP Item',
+        subtitle: 'Calculated automatically from bag weights and Rate/kg',
+        leading: const AppSvgIcon(icon: AppIconName.purchase),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_optionsLoading(viewModel))
+              const SkeletonShimmer(
+                label: 'Loading purchase item...',
+                child: SkeletonBox(height: 96),
+              )
+            else if (item == null)
+              Text(
+                _purchaseItemError(viewModel)!,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: field.hasError
+                      ? Theme.of(context).colorScheme.error
+                      : null,
+                ),
+              )
+            else
+              LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: DataTable(
+                      showCheckboxColumn: false,
+                      horizontalMargin: 12,
+                      columnSpacing: 24,
+                      headingRowColor: WidgetStatePropertyAll(
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                      ),
+                      columns: const [
+                        DataColumn(label: Text('No.')),
+                        DataColumn(label: Text('Item Code')),
+                        DataColumn(label: Text('Item Name')),
+                        DataColumn(label: Text('Qty (MT)'), numeric: true),
+                        DataColumn(label: Text('UOM')),
+                        DataColumn(label: Text('Rate/MT'), numeric: true),
+                        DataColumn(label: Text('Total Amount'), numeric: true),
+                      ],
+                      rows: [
+                        DataRow(
+                          cells: [
+                            const DataCell(Text('1')),
+                            DataCell(SelectableText(item.itemCode)),
+                            DataCell(Text(item.itemName)),
+                            DataCell(Text(item.quantityMt.toStringAsFixed(5))),
+                            const DataCell(Text('MT')),
+                            DataCell(
+                              Text(
+                                '\$ ${AppNumberFormat.amount(item.ratePerMt)}',
                               ),
                             ),
-                        ],
-                        validator: (value) =>
-                            value == null ? 'Select a journal entry.' : null,
-                        onChanged: (value) => setState(
-                          () => _advances[index].journalEntry = value,
+                            DataCell(
+                              Text(
+                                '\$ ${AppNumberFormat.amount(item.totalAmount)}',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            if (field.hasError && item != null) ...[
+              const SizedBox(height: AppSpacing.small),
+              Text(
+                field.errorText!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      );
+    },
+  );
+
+  Widget _availableAdvance(PointOfPurchaseViewModel viewModel) {
+    if (viewModel.isLoadingSupplierAdvances) {
+      return InputDecorator(
+        decoration: const InputDecoration(labelText: 'Available Advance (\$)'),
+        child: const SkeletonShimmer(
+          label: 'Loading supplier advance balance...',
+          child: SkeletonBox(height: 20),
+        ),
+      );
+    }
+    if (viewModel.supplierAdvancesError != null) {
+      return _MessagePanel(
+        message: viewModel.supplierAdvancesError!,
+        isError: true,
+        action: TextButton(
+          onPressed: () =>
+              unawaited(viewModel.loadSupplierAdvances(_supplier, force: true)),
+          child: const Text('Retry'),
+        ),
+      );
+    }
+    return _readOnlyValue(
+      'Available Advance (\$)',
+      _supplier == null
+          ? 'Select a supplier'
+          : _money(viewModel.availableAdvance),
+    );
+  }
+
+  Widget _buildAdvanceTable(PointOfPurchaseViewModel viewModel) {
+    final allocations = viewModel.allocateSupplierAdvances(
+      _fieldText('advances'),
+    );
+    return AppCard(
+      tone: AppCardTone.info,
+      showAccentBar: false,
+      title: 'Advance Table',
+      subtitle:
+          '${allocations.length} allocated ${allocations.length == 1 ? 'reference' : 'references'}',
+      leading: const AppSvgIcon(icon: AppIconName.inventory),
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              showCheckboxColumn: false,
+              columnSpacing: 24,
+              horizontalMargin: 12,
+              headingRowColor: WidgetStatePropertyAll(
+                Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+              columns: const [
+                DataColumn(label: Text('No.')),
+                DataColumn(label: Text('Reference Name')),
+                DataColumn(label: Text('Remarks')),
+                DataColumn(label: Text('Advance Amount'), numeric: true),
+                DataColumn(label: Text('Allocated Amount'), numeric: true),
+              ],
+              rows: [
+                for (var i = 0; i < allocations.length; i++)
+                  DataRow(
+                    cells: [
+                      DataCell(Text('${i + 1}')),
+                      DataCell(SelectableText(allocations[i].advance.name)),
+                      DataCell(Text(allocations[i].advance.remarks)),
+                      DataCell(
+                        Text(
+                          '\$ ${AppNumberFormat.amount(allocations[i].advance.unallocatedAmount)}',
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.medium),
-                      AppTextField(
-                        controller: _advances[index].unallocated,
-                        label: 'Unallocated amount',
-                        required: true,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
+                      DataCell(
+                        Text(
+                          '\$ ${AppNumberFormat.amount(allocations[i].allocatedAmount)}',
                         ),
-                        validator: _requiredNumber,
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: AppSpacing.medium),
-                      AppTextField(
-                        controller: _advances[index].allocated,
-                        label: 'Allocated amount',
-                        required: true,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        validator: _requiredNumber,
-                        onChanged: (_) => setState(() {}),
                       ),
                     ],
                   ),
-                ),
               ],
-            ],
+            ),
           ),
-  );
+        ),
+      ),
+    );
+  }
 
   Widget _buildCashPaymentTable(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.success,
@@ -969,17 +1092,21 @@ class _CreatePointOfPurchaseScreenState
                   validator: _optionalNumber,
                 ),
                 const SizedBox(height: AppSpacing.medium),
-                AppDropdown<String>(
-                  value: _cashPayments[index].paymentFrom,
-                  label: 'Payment From',
-                  hint: 'Select an account',
-                  enabled: !viewModel.isLoadingCreateOptions,
-                  items: _dropdownItems(viewModel.linkOptions('Account')),
-                  validator: (value) =>
-                      value == null ? 'Select a payment account.' : null,
-                  onChanged: (value) =>
-                      setState(() => _cashPayments[index].paymentFrom = value),
-                ),
+                _optionsLoading(viewModel) &&
+                        viewModel.linkOptions('Account').isEmpty
+                    ? const _OptionSkeleton(label: 'Payment From')
+                    : AppDropdown<String>(
+                        value: _cashPayments[index].paymentFrom,
+                        label: 'Payment From',
+                        hint: 'Select an account',
+                        enabled: !_optionsLoading(viewModel),
+                        items: _dropdownItems(viewModel.linkOptions('Account')),
+                        validator: (value) =>
+                            value == null ? 'Select a payment account.' : null,
+                        onChanged: (value) => setState(
+                          () => _cashPayments[index].paymentFrom = value,
+                        ),
+                      ),
                 const SizedBox(height: AppSpacing.small),
                 AppCheckbox(
                   value: _cashPayments[index].checkKnlg,
@@ -1005,20 +1132,8 @@ class _CreatePointOfPurchaseScreenState
       (option) => option['value'] == _supplier,
     );
     final vessel = _findOption(viewModel.supplierOptions, _links['vesel']);
-    final itemRows = <Map<String, dynamic>>[];
-    for (final row in _items) {
-      final item = _itemOption(viewModel, row.itemCode!);
-      final quantity = _number(row.qty.text);
-      final rate = _number(row.rate.text);
-      itemRows.add({
-        'item_code': row.itemCode,
-        'item_name': item?['title'] ?? row.itemCode,
-        'qty': quantity,
-        'uom': row.uom,
-        'rate': rate,
-        'total_amount': quantity * rate,
-      });
-    }
+    final item = _calculatedItem(viewModel)!;
+    final itemRows = [item.toJson()];
     final cashPaymentRows = [
       for (final row in _cashPayments)
         {
@@ -1047,6 +1162,7 @@ class _CreatePointOfPurchaseScreenState
       'phonemobile_no': _fieldText('phonemobile_no'),
       'ffa': _fieldText('ffa'),
       'delivery_type': _deliveryType,
+      'custom_product_type': _productType,
       'courier_name': _fieldText('courier_name'),
       'moisture': _fieldText('moisture'),
       'copra_bag_level': _fieldText('copra_bag_level'),
@@ -1091,17 +1207,12 @@ class _CreatePointOfPurchaseScreenState
       'journal_entry': _links['journal_entry'],
       'time': time,
       'pop_datetime': '$date $time',
-      'net_qty': _items.fold<double>(
-        0,
-        (sum, row) => sum + _number(row.qty.text),
-      ),
+      'net_qty': item.quantityMt,
       'supplier_advance_allocation': [
-        for (final row in _advances)
-          {
-            if (row.journalEntry != null) 'journal_entry': row.journalEntry,
-            'unallocated_amount': _number(row.unallocated.text),
-            'allocated_amount': _number(row.allocated.text),
-          },
+        for (final row in viewModel.allocateSupplierAdvances(
+          _fieldText('advances'),
+        ))
+          row.toJson(),
       ],
       if (_instantPaid) 'pop_cash_payment': cashPaymentRows,
     };
@@ -1121,16 +1232,6 @@ class _CreatePointOfPurchaseScreenState
         type: AppMessageType.error,
       );
     }
-  }
-
-  Map<String, dynamic>? _itemOption(
-    PointOfPurchaseViewModel viewModel,
-    String itemCode,
-  ) {
-    for (final option in viewModel.itemOptions) {
-      if (option['value'] == itemCode) return option;
-    }
-    return null;
   }
 
   String? _required(String? value) =>
@@ -1172,33 +1273,6 @@ class _BagDraft {
     number.dispose();
     weight.dispose();
     tare.dispose();
-  }
-}
-
-class _ItemDraft {
-  String? itemCode;
-  String? uom;
-  final qty = TextEditingController();
-  final rate = TextEditingController();
-
-  double get amount =>
-      (double.tryParse(qty.text.trim()) ?? 0) *
-      (double.tryParse(rate.text.trim()) ?? 0);
-
-  void dispose() {
-    qty.dispose();
-    rate.dispose();
-  }
-}
-
-class _AdvanceDraft {
-  String? journalEntry;
-  final unallocated = TextEditingController();
-  final allocated = TextEditingController();
-
-  void dispose() {
-    unallocated.dispose();
-    allocated.dispose();
   }
 }
 
@@ -1261,41 +1335,6 @@ class _EditorRow extends StatelessWidget {
   );
 }
 
-class _AmountPreview extends StatelessWidget {
-  const _AmountPreview({required this.amount});
-
-  final double amount;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.medium,
-        vertical: AppSpacing.small,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(AppDimensions.fieldRadius),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Total amount', style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 4),
-          Text(
-            AppNumberFormat.amount(amount),
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.onSecondaryContainer,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _MessagePanel extends StatelessWidget {
   const _MessagePanel({
     required this.message,
@@ -1335,4 +1374,23 @@ class _MessagePanel extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OptionSkeleton extends StatelessWidget {
+  const _OptionSkeleton({required this.label});
+  final String label;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(label, style: Theme.of(context).textTheme.labelLarge),
+      const SizedBox(height: 4),
+      const SkeletonBox(
+        height: AppDimensions.fieldHeight,
+        borderRadius: BorderRadius.all(
+          Radius.circular(AppDimensions.fieldRadius),
+        ),
+      ),
+    ],
+  );
 }

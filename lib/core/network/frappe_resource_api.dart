@@ -1,3 +1,5 @@
+import '../cache/cache_manager.dart';
+
 import 'dart:convert';
 
 import '../../config/constants/api_endpoints.dart';
@@ -7,6 +9,7 @@ import 'api_client.dart';
 class FrappeResourceApi {
   FrappeResourceApi(this._client);
   final ApiClient _client;
+  CacheManager? get cache => _client.cache;
 
   Future<List<Map<String, dynamic>>> getDocList(
     String doctype, {

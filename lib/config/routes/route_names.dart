@@ -7,6 +7,7 @@ abstract final class RouteNames {
   static const createPointOfPurchase = 'create-point-of-purchase';
   static const addSupplier = 'add-supplier';
   static const createSupplier = 'create-supplier';
+  static const supplierDetails = 'supplier-details';
   static const profile = 'profile';
   static const settings = 'settings';
   static const designSystem = 'design-system';

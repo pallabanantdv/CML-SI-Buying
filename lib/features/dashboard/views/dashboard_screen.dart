@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../../../core/navigation/app_navigation.dart';
+
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -13,7 +16,8 @@ import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_header_title.dart';
-import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/skeleton/skeleton.dart';
+import '../widgets/dashboard_skeleton.dart';
 import '../../../shared/widgets/app_status_badge.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../models/dashboard_data.dart';
@@ -81,8 +85,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ],
                     const SizedBox(height: 12),
-                    if (vm.isLoading && vm.data == null)
-                      const AppLoader(label: 'Loading purchase overview...')
+                    if (vm.data == null &&
+                        (vm.isLoading || vm.errorMessage == null))
+                      const DashboardSkeleton()
                     else if (vm.data == null && vm.errorMessage != null)
                       AppErrorWidget(
                         message: vm.errorMessage!,
@@ -111,7 +116,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               'Pull down to refresh the purchase overview.',
                         )
                       else
-                        ..._overview(context, vm.data!),
+                        SkeletonReveal(
+                          loading: false,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: _overview(context, vm.data!),
+                          ),
+                        ),
                     ],
                     const SizedBox(height: 12),
                     Text(
@@ -124,7 +135,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         AppButton(
                           label: 'Add purchase',
                           icon: AppIconName.add,
-                          onPressed: () => context.pushNamed(
+                          onPressed: () => context.pushNamedOnce(
                             RouteNames.createPointOfPurchase,
                           ),
                         ),
@@ -206,7 +217,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           currencySymbol: data.currencySymbol,
           onTap: purchase.documentName == null
               ? null
-              : () => context.pushNamed(
+              : () => context.pushNamedOnce(
                   RouteNames.pointOfPurchaseDetail,
                   pathParameters: {'documentName': purchase.documentName!},
                 ),

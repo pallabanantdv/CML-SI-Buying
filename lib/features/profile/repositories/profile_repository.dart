@@ -1,3 +1,4 @@
+import '../../../core/cache/cache_manager.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/network/frappe_resource_api.dart';
 import '../models/profile_model.dart';
@@ -21,6 +22,7 @@ class ProfileRepository {
   ];
 
   final FrappeResourceApi _resourceApi;
+  CacheManager? get cache => _resourceApi.cache;
 
   Future<ProfileModel> getProfile(String email) async {
     final users = await _resourceApi.getDocList(

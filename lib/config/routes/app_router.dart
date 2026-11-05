@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../constants/app_constants.dart';
@@ -15,9 +14,12 @@ import '../../features/profile/views/profile_screen.dart';
 import '../../features/settings/views/settings_screen.dart';
 import '../../features/supplier/views/add_supplier_screen.dart';
 import '../../features/supplier/views/create_supplier_screen.dart';
+import '../../features/supplier/views/supplier_details_screen.dart';
 import '../../shared/navigation/animated_branch_container.dart';
 import '../../shared/navigation/main_shell.dart';
 import 'route_names.dart';
+import '../../core/navigation/app_page_transitions.dart';
+import '../../core/navigation/app_transition_config.dart';
 
 GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
   initialLocation: RoutePaths.splash,
@@ -45,22 +47,41 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
     GoRoute(
       path: RoutePaths.splash,
       name: RouteNames.splash,
-      pageBuilder: (_, state) => _animatedPage(state, const SplashScreen()),
+      pageBuilder: (context, state) => AppPageTransitions.page(
+        context,
+        state,
+        const SplashScreen(),
+        transition: AppTransition.none,
+      ),
     ),
     GoRoute(
       path: RoutePaths.login,
       name: RouteNames.login,
-      pageBuilder: (_, state) => _animatedPage(state, const LoginScreen()),
+      pageBuilder: (context, state) => AppPageTransitions.page(
+        context,
+        state,
+        const LoginScreen(),
+        transition: AppTransition.fade,
+        duration: AppTransitionConfig.authentication,
+      ),
     ),
     GoRoute(
       path: RoutePaths.createPointOfPurchase,
       name: RouteNames.createPointOfPurchase,
-      pageBuilder: (_, state) =>
-          _animatedPage(state, const CreatePointOfPurchaseScreen()),
+      pageBuilder: (context, state) => AppPageTransitions.page(
+        context,
+        state,
+        const CreatePointOfPurchaseScreen(),
+      ),
     ),
     StatefulShellRoute(
-      builder: (context, state, navigationShell) =>
-          MainShell(navigationShell: navigationShell),
+      pageBuilder: (context, state, navigationShell) => AppPageTransitions.page(
+        context,
+        state,
+        MainShell(navigationShell: navigationShell),
+        transition: AppTransition.fade,
+        duration: AppTransitionConfig.splashToHome,
+      ),
       navigatorContainerBuilder: (context, navigationShell, children) =>
           AnimatedBranchContainer(
             currentIndex: navigationShell.currentIndex,
@@ -72,8 +93,12 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
             GoRoute(
               path: RoutePaths.dashboard,
               name: RouteNames.dashboard,
-              pageBuilder: (_, state) =>
-                  _animatedPage(state, const DashboardScreen()),
+              pageBuilder: (context, state) => AppPageTransitions.page(
+                context,
+                state,
+                const DashboardScreen(),
+                transition: AppTransition.none,
+              ),
             ),
           ],
         ),
@@ -82,17 +107,23 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
             GoRoute(
               path: RoutePaths.pointOfPurchase,
               name: RouteNames.pointOfPurchase,
-              pageBuilder: (_, state) =>
-                  _animatedPage(state, const PointOfPurchaseScreen()),
+              pageBuilder: (context, state) => AppPageTransitions.page(
+                context,
+                state,
+                const PointOfPurchaseScreen(),
+                transition: AppTransition.none,
+              ),
               routes: [
                 GoRoute(
                   path: ':documentName',
                   name: RouteNames.pointOfPurchaseDetail,
-                  pageBuilder: (_, state) => _animatedPage(
+                  pageBuilder: (context, state) => AppPageTransitions.page(
+                    context,
                     state,
                     PointOfPurchaseDetailScreen(
                       documentName: state.pathParameters['documentName']!,
                     ),
+                    duration: AppTransitionConfig.detail,
                   ),
                 ),
               ],
@@ -104,14 +135,33 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
             GoRoute(
               path: RoutePaths.addSupplier,
               name: RouteNames.addSupplier,
-              pageBuilder: (_, state) =>
-                  _animatedPage(state, const AddSupplierScreen()),
+              pageBuilder: (context, state) => AppPageTransitions.page(
+                context,
+                state,
+                const AddSupplierScreen(),
+                transition: AppTransition.none,
+              ),
               routes: [
                 GoRoute(
                   path: 'create',
                   name: RouteNames.createSupplier,
-                  pageBuilder: (_, state) =>
-                      _animatedPage(state, const CreateSupplierScreen()),
+                  pageBuilder: (context, state) => AppPageTransitions.page(
+                    context,
+                    state,
+                    const CreateSupplierScreen(),
+                  ),
+                ),
+                GoRoute(
+                  path: 'details/:supplierId',
+                  name: RouteNames.supplierDetails,
+                  pageBuilder: (context, state) => AppPageTransitions.page(
+                    context,
+                    state,
+                    SupplierDetailsScreen(
+                      supplierId: state.pathParameters['supplierId']!,
+                    ),
+                    duration: AppTransitionConfig.detail,
+                  ),
                 ),
               ],
             ),
@@ -122,14 +172,21 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
             GoRoute(
               path: RoutePaths.profile,
               name: RouteNames.profile,
-              pageBuilder: (_, state) =>
-                  _animatedPage(state, const ProfileScreen()),
+              pageBuilder: (context, state) => AppPageTransitions.page(
+                context,
+                state,
+                const ProfileScreen(),
+                transition: AppTransition.none,
+              ),
               routes: [
                 GoRoute(
                   path: 'settings',
                   name: RouteNames.settings,
-                  pageBuilder: (_, state) =>
-                      _animatedPage(state, const SettingsScreen()),
+                  pageBuilder: (context, state) => AppPageTransitions.page(
+                    context,
+                    state,
+                    const SettingsScreen(),
+                  ),
                 ),
               ],
             ),
@@ -141,32 +198,8 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
       GoRoute(
         path: RoutePaths.designSystem,
         name: RouteNames.designSystem,
-        pageBuilder: (_, state) =>
-            _animatedPage(state, const DesignSystemScreen()),
+        pageBuilder: (context, state) =>
+            AppPageTransitions.page(context, state, const DesignSystemScreen()),
       ),
   ],
 );
-
-CustomTransitionPage<void> _animatedPage(GoRouterState state, Widget child) =>
-    CustomTransitionPage<void>(
-      key: state.pageKey,
-      child: child,
-      transitionDuration: const Duration(milliseconds: 280),
-      reverseTransitionDuration: const Duration(milliseconds: 240),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        if (MediaQuery.of(context).disableAnimations) return child;
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        );
-        final slide = Tween<Offset>(
-          begin: const Offset(0.025, 0),
-          end: Offset.zero,
-        ).animate(curved);
-        return FadeTransition(
-          opacity: curved,
-          child: SlideTransition(position: slide, child: child),
-        );
-      },
-    );

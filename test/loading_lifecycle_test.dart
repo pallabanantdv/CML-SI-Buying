@@ -108,7 +108,10 @@ void main() {
     );
     await tester.pumpWidget(host(const PointOfPurchaseScreen()));
     await tester.pump();
-    expect(find.text('Loading purchase records...'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('Loading purchase records...'),
+      findsOneWidget,
+    );
     repository.list.complete([
       PointOfPurchaseModel.fromJson({
         'name': 'POP-1',
@@ -121,7 +124,10 @@ void main() {
       host(const PointOfPurchaseDetailScreen(documentName: 'POP-1')),
     );
     await tester.pump();
-    expect(find.text('Loading purchase details...'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('Loading purchase details...'),
+      findsOneWidget,
+    );
     await vm.loadPointOfPurchase('POP-1');
     expect(repository.detailCalls, 1);
     repository.details['POP-1']!.complete({
@@ -129,7 +135,7 @@ void main() {
       'supplier_name1': 'First purchase',
     });
     await tester.pumpAndSettle();
-    expect(find.text('Loading purchase details...'), findsNothing);
+    expect(find.bySemanticsLabel('Loading purchase details...'), findsNothing);
     expect(find.text('POP-1'), findsWidgets);
     await tester.pumpWidget(const SizedBox());
     vm.dispose();
@@ -173,7 +179,7 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('Loading suppliers...'), findsOneWidget);
+      expect(find.bySemanticsLabel('Loading suppliers...'), findsOneWidget);
       await vm.loadSuppliers(); // In-flight call is deduplicated.
       expect(repository.calls, 1);
       repository.pending.completeError(StateError('offline'));
@@ -205,6 +211,49 @@ void main() {
     await load;
     expect(vm.suppliers, isEmpty);
   });
+
+  testWidgets(
+    'slow suppliers retain controls, refresh retains data, empty ends shimmer',
+    (tester) async {
+      final repository = Suppliers();
+      final vm = SupplierViewModel(repository);
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: vm,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: const AddSupplierScreen(),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.bySemanticsLabel('Loading suppliers...'), findsOneWidget);
+      expect(find.text('Search suppliers'), findsOneWidget);
+      expect(find.text('Add supplier'), findsOneWidget);
+      repository.pending.complete([
+        const SupplierModel(id: 'S1', name: 'Kept supplier'),
+      ]);
+      await tester.pumpAndSettle();
+      repository.pending = Completer();
+      final refresh = vm.loadSuppliers();
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text('Kept supplier'), findsOneWidget);
+      expect(find.bySemanticsLabel('Loading suppliers...'), findsNothing);
+      repository.pending.completeError(StateError('offline'));
+      await refresh;
+      await tester.pumpAndSettle();
+      expect(find.text('Kept supplier'), findsOneWidget);
+      repository.pending = Completer();
+      final emptyRefresh = vm.loadSuppliers();
+      repository.pending.complete([]);
+      await emptyRefresh;
+      await tester.pumpAndSettle();
+      expect(find.text('No suppliers found'), findsOneWidget);
+      expect(find.bySemanticsLabel('Loading suppliers...'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      vm.dispose();
+    },
+  );
 
   test(
     'logs redact credentials, business values, nested JSON and URL identifiers',

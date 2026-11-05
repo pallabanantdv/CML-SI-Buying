@@ -34,6 +34,24 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
+  /// Recheck server authorization before refreshing saved data after reconnect.
+  Future<bool> revalidateSession() async {
+    if (!_isAuthenticated) return false;
+    try {
+      final user = await _repository.currentUser();
+      if (user.id.isEmpty || user.id != _user?.id) {
+        await expireSession();
+        return false;
+      }
+      return true;
+    } on AppException catch (error) {
+      if (error.isAuthenticationError || error.statusCode == 403) {
+        await expireSession();
+      }
+      return false;
+    }
+  }
+
   Future<bool> login(String username, String password) async {
     _setLoading(true);
     _errorMessage = null;
@@ -66,11 +84,16 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   Future<void> expireSession() async {
-    await _repository.clearLocalSession();
-    _user = null;
-    _isAuthenticated = false;
-    _initialized = true;
-    _notify();
+    try {
+      await _repository.clearLocalSession();
+    } catch (error) {
+      _errorMessage = error is AppException ? error.message : 'Your local session could not be fully cleared. Please retry signing out.';
+    } finally {
+      _user = null;
+      _isAuthenticated = false;
+      _initialized = true;
+      _notify();
+    }
   }
 
   void clearError() {

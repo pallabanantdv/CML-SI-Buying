@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../config/theme/app_spacing.dart';
+import '../../core/navigation/app_page_transitions.dart';
+import '../../core/navigation/app_transition_config.dart';
 
 class AppDialog extends StatelessWidget {
   const AppDialog({
@@ -21,13 +23,31 @@ class AppDialog extends StatelessWidget {
     required String description,
     required List<Widget> actions,
     Widget? icon,
-  }) => showDialog<T>(
+  }) => showGeneralDialog<T>(
     context: context,
-    builder: (_) => AppDialog(
-      title: title,
-      description: description,
-      actions: actions,
-      icon: icon,
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: Colors.black54,
+    transitionDuration: MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : AppTransitionConfig.modal,
+    transitionBuilder: (context, animation, secondaryAnimation, child) =>
+        AppPageTransitions.build(
+          context,
+          animation,
+          child,
+          transition: AppTransition.scaleFade,
+        ),
+    pageBuilder: (dialogContext, _, _) => SafeArea(
+      child: InheritedTheme.captureAll(
+        context,
+        AppDialog(
+          title: title,
+          description: description,
+          actions: actions,
+          icon: icon,
+        ),
+      ),
     ),
   );
 

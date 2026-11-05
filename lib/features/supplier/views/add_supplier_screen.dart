@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+
+import '../../../core/navigation/app_navigation.dart';
+
 import 'package:provider/provider.dart';
 
 import '../../../core/diagnostics/app_diagnostics.dart';
@@ -18,7 +20,8 @@ import '../../../shared/widgets/app_card_heading.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_header_title.dart';
-import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/skeleton/skeleton.dart';
+import '../widgets/supplier_list_skeleton.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../../../shared/widgets/app_status_badge.dart';
 import '../../../shared/widgets/app_search_field.dart';
@@ -64,7 +67,14 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
             constraints: const BoxConstraints(
               maxWidth: AppDimensions.supplierDirectoryMaxWidth,
             ),
-            child: _buildContent(context, viewModel),
+            child: SkeletonReveal(
+              loading:
+                  !viewModel.hasLoaded &&
+                  viewModel.suppliers.isEmpty &&
+                  (viewModel.isLoading ||
+                      (!viewModel.hasLoaded && viewModel.errorMessage == null)),
+              child: _buildContent(context, viewModel),
+            ),
           ),
         ),
       ),
@@ -77,10 +87,15 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
         '[$runtimeType] render loading=${viewModel.isLoading}',
       );
     }
-    if (viewModel.isLoading && viewModel.suppliers.isEmpty) {
-      return const AppLoader(label: 'Loading suppliers...');
-    }
-    if (viewModel.errorMessage != null && viewModel.suppliers.isEmpty) {
+    final loading =
+        !viewModel.hasLoaded &&
+        viewModel.suppliers.isEmpty &&
+        (viewModel.isLoading ||
+            (!viewModel.hasLoaded && viewModel.errorMessage == null));
+    if (!loading &&
+        viewModel.errorMessage != null &&
+        !viewModel.hasLoaded &&
+        viewModel.suppliers.isEmpty) {
       return AppErrorWidget(
         message: viewModel.errorMessage!,
         onRetry: () => unawaited(viewModel.loadSuppliers()),
@@ -94,10 +109,11 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppDimensions.pageGutter),
-        itemCount: suppliers.isEmpty ? 2 : suppliers.length + 1,
+        itemCount: loading || suppliers.isEmpty ? 2 : suppliers.length + 1,
         separatorBuilder: (_, index) => SizedBox(height: AppSpacing.cardGap),
         itemBuilder: (context, index) {
           if (index == 0) return _searchAndAddSupplier(context, viewModel);
+          if (loading) return const SupplierListSkeleton();
           if (index == 1 && suppliers.isEmpty) {
             return AppEmptyState(
               icon: AppIconName.supplier,
@@ -150,7 +166,7 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
             icon: AppIconName.add,
             expand: false,
             onPressed: () async {
-              final created = await context.pushNamed<bool>(
+              final created = await context.pushNamedOnce<bool>(
                 RouteNames.createSupplier,
               );
               if (created == true && context.mounted) {
@@ -214,6 +230,10 @@ class _SupplierCard extends StatelessWidget {
       supplier.location,
     ].whereType<String>().where((value) => value.isNotEmpty).join(' \u00b7 ');
     return AppCard(
+      onTap: () => context.pushNamedOnce(
+        RouteNames.supplierDetails,
+        pathParameters: {'supplierId': supplier.id},
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+
+import '../../../core/navigation/app_navigation.dart';
+
 import 'package:provider/provider.dart';
 
 import '../../../config/routes/route_names.dart';
@@ -15,7 +17,8 @@ import '../../../shared/widgets/app_snackbar.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_header_title.dart';
-import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/skeleton/skeleton.dart';
+import '../widgets/purchase_list_skeleton.dart';
 import '../../../shared/widgets/app_search_field.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
 import '../viewmodels/point_of_purchase_viewmodel.dart';
@@ -77,14 +80,20 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
             constraints: const BoxConstraints(
               maxWidth: AppDimensions.purchaseListMaxWidth,
             ),
-            child: _content(vm),
+            child: SkeletonReveal(
+              loading:
+                  !vm.hasLoaded &&
+                  vm.records.isEmpty &&
+                  (vm.isLoading || (!vm.hasLoaded && vm.errorMessage == null)),
+              child: _content(vm),
+            ),
           ),
         ),
       ),
     ),
   );
   Future<void> _createPurchase() async {
-    final created = await context.pushNamed<bool>(
+    final created = await context.pushNamedOnce<bool>(
       RouteNames.createPointOfPurchase,
     );
     if (created == true && mounted) {
@@ -98,10 +107,14 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
         '[POP SCREEN] render loading=${vm.isLoading} count=${vm.records.length}',
       );
     }
-    if (vm.isLoading && vm.records.isEmpty) {
-      return const AppLoader(label: 'Loading purchase records...');
-    }
-    if (vm.errorMessage != null && vm.records.isEmpty) {
+    final loading =
+        !vm.hasLoaded &&
+        vm.records.isEmpty &&
+        (vm.isLoading || (!vm.hasLoaded && vm.errorMessage == null));
+    if (!loading &&
+        vm.errorMessage != null &&
+        !vm.hasLoaded &&
+        vm.records.isEmpty) {
       return AppErrorWidget(
         message: vm.errorMessage!,
         onRetry: () => unawaited(vm.loadPointOfPurchases()),
@@ -140,7 +153,7 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppDimensions.pageGutter),
-        itemCount: records.isEmpty ? 2 : records.length + 1,
+        itemCount: loading || records.isEmpty ? 2 : records.length + 1,
         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.cardGap),
         itemBuilder: (context, index) {
           if (index == 0) {
@@ -236,6 +249,7 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
               ],
             );
           }
+          if (loading) return const PurchaseListSkeleton();
           if (records.isEmpty) {
             return AppEmptyState(
               icon: AppIconName.purchase,
@@ -250,7 +264,7 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
           final record = records[index - 1];
           return AppPurchaseCard(
             record: record,
-            onTap: () => context.pushNamed(
+            onTap: () => context.pushNamedOnce(
               RouteNames.pointOfPurchaseDetail,
               pathParameters: {'documentName': record.name},
             ),

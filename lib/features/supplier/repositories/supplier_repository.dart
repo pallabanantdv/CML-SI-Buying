@@ -1,3 +1,4 @@
+import '../../../core/cache/cache_manager.dart';
 import '../../../core/network/frappe_resource_api.dart';
 import '../models/supplier_model.dart';
 
@@ -24,6 +25,7 @@ class SupplierRepository {
   ];
 
   final FrappeResourceApi _resourceApi;
+  CacheManager? get cache => _resourceApi.cache;
 
   Future<List<SupplierModel>> getSuppliers() async {
     final records = await _resourceApi.getDocList(
@@ -34,6 +36,9 @@ class SupplierRepository {
     );
     return records.map(SupplierModel.fromJson).toList(growable: false);
   }
+
+  Future<Map<String, dynamic>> getSupplier(String documentName) =>
+      _resourceApi.getDoc(_doctype, documentName);
 
   Future<SupplierModel> createSupplier(Map<String, dynamic> fields) async =>
       SupplierModel.fromJson(await _resourceApi.createDoc(_doctype, fields));

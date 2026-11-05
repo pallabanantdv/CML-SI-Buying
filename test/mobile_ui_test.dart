@@ -36,6 +36,7 @@ import 'package:cml_si_buying/features/auth/viewmodels/auth_viewmodel.dart';
 import 'package:cml_si_buying/features/auth/views/login_screen.dart';
 import 'package:cml_si_buying/features/dashboard/views/dashboard_screen.dart';
 import 'package:cml_si_buying/features/point_of_purchase/models/point_of_purchase_model.dart';
+import 'package:cml_si_buying/features/point_of_purchase/models/supplier_advance.dart';
 import 'package:cml_si_buying/features/point_of_purchase/repositories/point_of_purchase_repository.dart';
 import 'package:cml_si_buying/features/point_of_purchase/viewmodels/point_of_purchase_viewmodel.dart';
 import 'package:cml_si_buying/features/point_of_purchase/views/point_of_purchase_screen.dart';
@@ -60,6 +61,10 @@ class PurchaseData extends PointOfPurchaseRepository {
   final List<PointOfPurchaseModel>? records;
   int calls = 0;
   Map<String, dynamic>? created;
+  List<SupplierAdvance> supplierAdvances = const [];
+  @override
+  Future<List<SupplierAdvance>> getSupplierAdvances(String supplier) async =>
+      supplierAdvances;
   @override
   Future<Map<String, dynamic>> createPointOfPurchase(
     Map<String, dynamic> fields,
@@ -114,7 +119,18 @@ class PurchaseData extends PointOfPurchaseRepository {
   ];
   @override
   Future<List<Map<String, dynamic>>> getItemOptions() async => [
-    {'value': 'I1', 'title': 'Copra', 'label': 'Copra', 'stock_uom': 'Kg'},
+    {
+      'value': 'I1',
+      'title': 'RAW COPRA',
+      'label': 'RAW COPRA',
+      'stock_uom': 'Kg',
+    },
+    {
+      'value': 'RAW-001',
+      'title': 'COCOA BEAN',
+      'label': 'COCOA BEAN',
+      'stock_uom': 'MT',
+    },
   ];
   @override
   Future<List<Map<String, dynamic>>> getJournalEntryOptions() async => [];
@@ -591,8 +607,17 @@ void main() {
                   .read<PointOfPurchaseViewModel>()
                   .repository
               as PurchaseData;
+      data.supplierAdvances = const [
+        SupplierAdvance(
+          name: 'PAY-TEST',
+          paidMinor: 100000,
+          unallocatedMinor: 100000,
+        ),
+      ];
       Future<void> select(String label, String option) async {
-        final field = find.text(label);
+        final field = find.byWidgetPredicate(
+          (widget) => widget is AppDropdown<String> && widget.label == label,
+        );
         await tester.ensureVisible(field);
         await tester.tap(field);
         await tester.pumpAndSettle();
@@ -611,31 +636,42 @@ void main() {
 
       await select('Supplier Code *', 'Supplier One');
       await select('Company *', 'CAML');
+      await select('Product Type', 'Copra');
+      await select('Product Type', 'Cocoa');
       await fill('Weight (kg)', '25');
       await fill('Rate/kg *', '10');
-      await select('Item *', 'Copra');
-      await fill('Quantity', '2');
-      await fill('Rate', '10');
       await fill(r'Freight Amount ($)', '3');
+      await fill(r'Advances Deduction ($)', '5');
       await select('Mode of Payment', 'Cash');
-      await fill(r'Payment Amount ($)', '17');
+      await fill(r'Payment Amount ($)', '242');
       await select('Default Accepted Warehouse *', 'Main warehouse');
       await tester.tap(find.text('Save purchase'));
       await tester.pumpAndSettle();
       expect(data.created, isNotNull);
       expect(data.created!['supplier_name'], 'S1');
       expect(data.created!['company'], 'C1');
-      expect(data.created!['grand_total'], 20);
-      expect(data.created!['total_deduction'], 3);
-      expect(data.created!['net_payable'], 17);
+      expect(data.created!['custom_product_type'], 'Cocoa');
+      expect(data.created!['grand_total'], 250);
+      expect(data.created!['total_deduction'], 8);
+      expect(data.created!['net_payable'], 242);
+      expect(data.created!['advances'], 5);
+      expect(data.created!['supplier_advance_allocation'], [
+        {
+          'reference_name': 'PAY-TEST',
+          'remarks': '',
+          'advance_amount': 1000.0,
+          'allocated_amount': 5.0,
+        },
+      ]);
       expect(data.created!['gross_weight'], 25);
+      expect(data.created!['net_qty'], 0.025);
       expect((data.created!['supplier_pop_item'] as List).single, {
-        'item_code': 'I1',
-        'item_name': 'Copra',
-        'qty': 2.0,
-        'uom': 'Kg',
-        'rate': 10.0,
-        'total_amount': 20.0,
+        'item_code': 'RAW-001',
+        'item_name': 'COCOA BEAN',
+        'qty': 0.025,
+        'uom': 'MT',
+        'rate': 10000.0,
+        'total_amount': 250.0,
       });
       expect(find.text('Test server refused save'), findsWidgets);
       expect(tester.takeException(), isNull);

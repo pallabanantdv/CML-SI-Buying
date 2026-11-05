@@ -1,23 +1,50 @@
 import 'dart:async';
 
+import '../../../core/cache/cache_manager.dart';
 import '../../../core/diagnostics/app_diagnostics.dart';
 import '../../../core/diagnostics/diagnostic_notifier.dart';
 import '../../../core/errors/app_exception.dart';
 import '../models/point_of_purchase_model.dart';
+import '../models/supplier_advance.dart';
 import '../repositories/point_of_purchase_repository.dart';
 
 class PointOfPurchaseViewModel extends DiagnosticNotifier {
-  PointOfPurchaseViewModel(this.repository);
+  PointOfPurchaseViewModel(this.repository) {
+    repository.cache?.addListener(_cacheChanged);
+  }
 
   final PointOfPurchaseRepository repository;
+  void _cacheChanged() => notifyListeners();
+  bool get hasSavedData =>
+      repository.cache?.hasSavedData(
+        '/api/resource/Supplier%20Point%20Of%20Purchase',
+      ) ??
+      false;
+  @override
+  void dispose() {
+    repository.cache?.removeListener(_cacheChanged);
+    super.dispose();
+  }
 
   String get title => 'Point of Purchase';
   List<PointOfPurchaseModel> _records = const [];
   bool _isLoading = false;
   bool _hasLoaded = false;
   int _listRequestId = 0;
+  int _sessionId = 0;
 
   void resetSession() {
+    ++_sessionId;
+    _resetSupplierAdvances();
+    _isCreating = false;
+    _createErrorMessage = null;
+    _isLoadingCreateOptions = false;
+    _createOptionsError = null;
+    _hasCreateOptions = false;
+    _supplierOptions = const [];
+    _itemOptions = const [];
+    _journalEntryOptions = const [];
+    _otherLinkOptions = const {};
     ++_listRequestId;
     ++_detailRequestId;
     _hasLoaded = false;
@@ -29,6 +56,24 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
     _isLoading = false;
     _isLoadingDetail = false;
     notifyListeners();
+  }
+
+  void revokeSavedData() {
+    final name = _selectedName;
+    resetSession();
+    _selectedName = name;
+    _errorMessage =
+        'This saved data is no longer available. Reconnect and tap Retry.';
+    _detailErrorMessage = _errorMessage;
+    notifyListeners();
+  }
+
+  Future<void> refreshReferenceData() async {
+    if (_hasCreateOptions || _createOptionsError != null) {
+      await loadCreateOptions();
+    }
+    final supplier = _advanceSupplier;
+    if (supplier != null) await loadSupplierAdvances(supplier, force: true);
   }
 
   Future<void> ensureLoaded() async {
@@ -46,16 +91,31 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
   List<Map<String, dynamic>> _journalEntryOptions = const [];
   Map<String, List<Map<String, dynamic>>> _otherLinkOptions = const {};
   bool _isLoadingCreateOptions = false;
+  bool _hasCreateOptions = false;
+  bool get hasCreateOptions => _hasCreateOptions;
   String? _createOptionsError;
   bool _isCreating = false;
   String? _createErrorMessage;
 
   List<PointOfPurchaseModel> get records => _records;
   bool get isLoading => _isLoading;
+  bool get isRefreshing =>
+      (_isLoading && _hasLoaded) ||
+      (repository.cache?.isRefreshing(
+            '/api/resource/Supplier%20Point%20Of%20Purchase',
+          ) ??
+          false);
+  bool get hasLoaded => _hasLoaded;
   String? get errorMessage => _errorMessage;
   Map<String, dynamic>? get selectedRecord => _selectedRecord;
   String? get selectedName => _selectedName;
   bool get isLoadingDetail => _isLoadingDetail;
+  bool get isRefreshingDetail =>
+      (_isLoadingDetail && _selectedRecord != null) ||
+      (repository.cache?.isRefreshing(
+            '/api/resource/Supplier%20Point%20Of%20Purchase/${Uri.encodeComponent(_selectedName ?? '')}',
+          ) ??
+          false);
   String? get detailErrorMessage => _detailErrorMessage;
   List<Map<String, dynamic>> get supplierOptions => _supplierOptions;
   List<Map<String, dynamic>> get itemOptions => _itemOptions;
@@ -67,8 +127,130 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
   bool get isCreating => _isCreating;
   String? get createErrorMessage => _createErrorMessage;
 
+  List<SupplierAdvance> _supplierAdvances = const [];
+  String? _advanceSupplier;
+  bool _isLoadingSupplierAdvances = false;
+  bool _supplierAdvancesLoaded = false;
+  String? _supplierAdvancesError;
+  int _advanceRequestId = 0;
+  List<SupplierAdvance> get supplierAdvances => _supplierAdvances;
+  bool get isLoadingSupplierAdvances => _isLoadingSupplierAdvances;
+  String? get supplierAdvancesError => _supplierAdvancesError;
+  int get availableAdvanceMinor => _supplierAdvances.fold<int>(
+    0,
+    (total, advance) => total + advance.unallocatedMinor,
+  );
+  double get availableAdvance => availableAdvanceMinor / 100;
+
+  void _resetSupplierAdvances() {
+    ++_advanceRequestId;
+    _advanceSupplier = null;
+    _supplierAdvances = const [];
+    _isLoadingSupplierAdvances = false;
+    _supplierAdvancesLoaded = false;
+    _supplierAdvancesError = null;
+  }
+
+  void clearSupplierAdvances() {
+    if (isDisposed) return;
+    _resetSupplierAdvances();
+    notifyListeners();
+  }
+
+  Future<void> loadSupplierAdvances(
+    String? supplier, {
+    bool force = false,
+  }) async {
+    if (isDisposed) return;
+    final name = supplier?.trim() ?? '';
+    if (name.isEmpty) {
+      clearSupplierAdvances();
+      return;
+    }
+    if (_advanceSupplier == name &&
+        (_isLoadingSupplierAdvances || (!force && _supplierAdvancesLoaded))) {
+      return;
+    }
+    final request = ++_advanceRequestId;
+    if (_advanceSupplier != name) {
+      _supplierAdvances = const [];
+      _supplierAdvancesLoaded = false;
+    }
+    _advanceSupplier = name;
+    _isLoadingSupplierAdvances = true;
+    _supplierAdvancesError = null;
+    notifyListeners();
+    try {
+      final advances = await repository.getSupplierAdvances(name);
+      if (isDisposed || request != _advanceRequestId) return;
+      _supplierAdvances = List.unmodifiable(advances);
+      _supplierAdvancesLoaded = true;
+    } on AppException catch (error) {
+      if (!isDisposed && request == _advanceRequestId) {
+        _supplierAdvancesError = error.message;
+      }
+    } catch (_) {
+      if (!isDisposed && request == _advanceRequestId) {
+        _supplierAdvancesError =
+            'Unable to load supplier advances. Please retry.';
+      }
+    } finally {
+      if (!isDisposed && request == _advanceRequestId) {
+        _isLoadingSupplierAdvances = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  String? validateAdvanceDeduction(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final amount = double.tryParse(text);
+    if (amount == null || !amount.isFinite) return 'Enter a valid amount.';
+    if (amount < 0) return 'Enter zero or a positive amount.';
+    final scaled = amount * 100;
+    if (!scaled.isFinite || scaled > 9007199254740991) {
+      return 'Enter a smaller amount.';
+    }
+    final minor = scaled.round();
+    if ((scaled - minor).abs() > 0.000001) {
+      return 'Use at most two decimal places.';
+    }
+    if (minor == 0) return null;
+    if (_advanceSupplier == null) return 'Select a supplier first.';
+    if (_isLoadingSupplierAdvances) {
+      return 'Wait for the supplier advances to load.';
+    }
+    if (!_supplierAdvancesLoaded || _supplierAdvancesError != null) {
+      return 'Load the supplier advances before deducting an advance.';
+    }
+    if (minor > availableAdvanceMinor) {
+      return 'Deduction cannot exceed the available advance.';
+    }
+    return null;
+  }
+
+  List<SupplierAdvanceAllocation> allocateSupplierAdvances(String deduction) {
+    if (validateAdvanceDeduction(deduction) != null) return const [];
+    var remaining = ((double.tryParse(deduction.trim()) ?? 0) * 100).round();
+    final rows = <SupplierAdvanceAllocation>[];
+    for (final advance in _supplierAdvances) {
+      if (remaining <= 0) break;
+      if (advance.unallocatedMinor <= 0) continue;
+      final allocated = remaining < advance.unallocatedMinor
+          ? remaining
+          : advance.unallocatedMinor;
+      rows.add(
+        SupplierAdvanceAllocation(advance: advance, allocatedMinor: allocated),
+      );
+      remaining -= allocated;
+    }
+    return List.unmodifiable(rows);
+  }
+
   Future<void> loadCreateOptions() async {
     if (_isLoadingCreateOptions) return;
+    final sessionId = _sessionId;
     _isLoadingCreateOptions = true;
     _createOptionsError = null;
     notifyListeners();
@@ -88,6 +270,8 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
         repository.getLinkOptions('Mode of Payment'),
         repository.getLinkOptions('UOM'),
       ]);
+      if (sessionId != _sessionId || isDisposed) return;
+      _hasCreateOptions = true;
       _supplierOptions = options[0];
       _itemOptions = options[1];
       _journalEntryOptions = options[2];
@@ -100,22 +284,28 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
         'UOM': options[8],
       };
     } on AppException catch (error) {
+      if (sessionId != _sessionId || isDisposed) return;
       _createOptionsError = error.message;
     } catch (_) {
+      if (sessionId != _sessionId || isDisposed) return;
       _createOptionsError = 'Unable to load purchase form options.';
     } finally {
-      _isLoadingCreateOptions = false;
-      notifyListeners();
+      if (sessionId == _sessionId && !isDisposed) {
+        _isLoadingCreateOptions = false;
+        notifyListeners();
+      }
     }
   }
 
   Future<bool> createPointOfPurchase(Map<String, dynamic> fields) async {
     if (_isCreating) return false;
+    final sessionId = _sessionId;
     _isCreating = true;
     _createErrorMessage = null;
     notifyListeners();
     try {
       await repository.createPointOfPurchase(fields);
+      if (sessionId != _sessionId || isDisposed) return false;
       _createErrorMessage = null;
       _isCreating = false;
       notifyListeners();
@@ -123,13 +313,15 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
       unawaited(loadPointOfPurchases());
       return true;
     } on AppException catch (error) {
+      if (sessionId != _sessionId || isDisposed) return false;
       _createErrorMessage = error.message;
       return false;
     } catch (_) {
+      if (sessionId != _sessionId || isDisposed) return false;
       _createErrorMessage = 'Unable to create this purchase record.';
       return false;
     } finally {
-      if (_isCreating) {
+      if (_isCreating && sessionId == _sessionId && !isDisposed) {
         _isCreating = false;
         notifyListeners();
       }
@@ -142,7 +334,7 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
     notifyListeners();
   }
 
-  Future<void> loadPointOfPurchases() async {
+  Future<void> loadPointOfPurchases({bool force = true}) async {
     if (isDisposed || _isLoading) return;
     final listRequest = ++_listRequestId;
     AppDiagnostics.write('[$runtimeType] list load started');
@@ -150,7 +342,9 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      final result = await repository.getPointOfPurchases();
+      final result = await (force
+          ? CacheManager.force(() => repository.getPointOfPurchases())
+          : repository.getPointOfPurchases());
       if (isDisposed || listRequest != _listRequestId) return;
       _records = result;
       _hasLoaded = true;
@@ -171,19 +365,26 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
     }
   }
 
-  Future<void> loadPointOfPurchase(String documentName) async {
+  Future<void> loadPointOfPurchase(
+    String documentName, {
+    bool force = true,
+  }) async {
     if (isDisposed || (_isLoadingDetail && _selectedName == documentName)) {
       return;
     }
     AppDiagnostics.write('[$runtimeType] detail load started');
     final requestId = ++_detailRequestId;
+    if (_selectedName != documentName) _selectedRecord = null;
     _selectedName = documentName;
-    _selectedRecord = null;
     _detailErrorMessage = null;
     _isLoadingDetail = true;
     notifyListeners();
     try {
-      final record = await repository.getPointOfPurchase(documentName);
+      final record = await (force
+          ? CacheManager.force(
+              () => repository.getPointOfPurchase(documentName),
+            )
+          : repository.getPointOfPurchase(documentName));
       if (isDisposed || requestId != _detailRequestId) return;
       _selectedRecord = record;
       AppDiagnostics.write('[$runtimeType] detail parsed');

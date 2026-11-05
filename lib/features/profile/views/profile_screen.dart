@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+
+import '../../../core/navigation/app_navigation.dart';
+
 import 'package:provider/provider.dart';
 
 import '../../../config/routes/route_names.dart';
@@ -17,7 +19,8 @@ import '../../../shared/widgets/app_info_row.dart';
 import '../../../shared/widgets/app_empty_state.dart';
 import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_header_title.dart';
-import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/skeleton/skeleton.dart';
+import '../widgets/profile_skeleton.dart';
 import '../../../shared/widgets/app_expandable_section.dart';
 import '../../../shared/widgets/app_status_badge.dart';
 import '../../../shared/widgets/app_svg_icon.dart';
@@ -62,21 +65,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
             constraints: const BoxConstraints(
               maxWidth: AppDimensions.profileContentMaxWidth,
             ),
-            child: ListView(
-              padding: const EdgeInsets.all(AppDimensions.pageGutter),
-              children: [
-                _profileCard(context, profile),
-                const SizedBox(height: AppSpacing.sectionGap),
-                AppCard(
-                  title: 'Settings',
-                  subtitle: 'Appearance, account and app information',
-                  leading: AppSvgIcon(
-                    icon: AppIconName.settings,
-                    color: Theme.of(context).colorScheme.primary,
+            child: RefreshIndicator(
+              onRefresh: () async {
+                final email = context.read<AuthViewModel>().user?.id;
+                if (email != null) {
+                  await profile.loadProfile(email, force: true);
+                }
+              },
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(AppDimensions.pageGutter),
+                children: [
+                  SkeletonReveal(
+                    loading: _profileLoading(profile),
+                    child: _profileCard(context, profile),
                   ),
-                  onTap: () => context.pushNamed(RouteNames.settings),
-                ),
-              ],
+                  const SizedBox(height: AppSpacing.sectionGap),
+                  AppCard(
+                    title: 'Settings',
+                    subtitle: 'Appearance, account and app information',
+                    leading: AppSvgIcon(
+                      icon: AppIconName.settings,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    onTap: () => context.pushNamedOnce(RouteNames.settings),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -84,16 +99,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ),
   );
 
+  bool _profileLoading(ProfileViewModel state) =>
+      state.profile == null &&
+      (state.isLoading ||
+          ((_requestedEmail?.isNotEmpty ?? false) &&
+              state.errorMessage == null));
+
   Widget _profileCard(BuildContext context, ProfileViewModel state) {
-    if (state.isLoading) {
-      return const AppCard(
-        tone: AppCardTone.info,
-        showAccentBar: false,
-        title: 'Account information',
-        child: AppLoader(label: 'Loading profile...'),
-      );
-    }
-    if (state.errorMessage != null) {
+    if (_profileLoading(state)) return const ProfileSkeleton();
+    if (state.errorMessage != null && state.profile == null) {
       return AppCard(
         tone: AppCardTone.error,
         showAccentBar: false,

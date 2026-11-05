@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../config/theme/app_colors.dart';
+import '../../core/navigation/app_transition_config.dart';
 import '../widgets/app_svg_icon.dart';
 import 'bottom_navigation_item.dart';
 
@@ -26,7 +27,7 @@ class AppFloatingBottomNavigation extends StatelessWidget {
     final scheme = theme.colorScheme;
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
-        : const Duration(milliseconds: 220);
+        : AppTransitionConfig.bottomNavigation;
     return SafeArea(
       top: false,
       child: Padding(
@@ -127,7 +128,7 @@ class AppFloatingBottomNavigation extends StatelessWidget {
                     bottom: 8,
                     child: AnimatedContainer(
                       duration: duration,
-                      curve: Curves.easeOutCubic,
+                      curve: AppTransitionConfig.curve,
                       width: 5,
                       height: 5,
                       decoration: BoxDecoration(

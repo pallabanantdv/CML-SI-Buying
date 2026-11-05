@@ -15,7 +15,8 @@ import '../../../shared/widgets/app_card_heading.dart';
 import '../../../shared/widgets/app_info_row.dart';
 import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_error_widget.dart';
-import '../../../shared/widgets/app_loader.dart';
+import '../../../shared/widgets/skeleton/skeleton.dart';
+import '../widgets/purchase_detail_skeleton.dart';
 import '../../../shared/widgets/app_expandable_section.dart';
 import '../../../shared/widgets/app_status_badge.dart';
 import '../viewmodels/point_of_purchase_viewmodel.dart';
@@ -67,7 +68,17 @@ class _PointOfPurchaseDetailScreenState
             constraints: const BoxConstraints(
               maxWidth: AppDimensions.detailContentMaxWidth,
             ),
-            child: _buildContent(context, viewModel),
+            child: SkeletonReveal(
+              loading:
+                  (viewModel.isLoadingDetail &&
+                      viewModel.selectedRecord == null) ||
+                  viewModel.selectedName != widget.documentName,
+              child: RefreshIndicator(
+                onRefresh: () =>
+                    viewModel.loadPointOfPurchase(widget.documentName),
+                child: _buildContent(context, viewModel),
+              ),
+            ),
           ),
         ),
       ),
@@ -83,11 +94,12 @@ class _PointOfPurchaseDetailScreenState
         '[$runtimeType] render loading=${viewModel.isLoadingDetail} error=${viewModel.detailErrorMessage != null}',
       );
     }
-    if (viewModel.isLoadingDetail ||
+    if ((viewModel.isLoadingDetail && viewModel.selectedRecord == null) ||
         viewModel.selectedName != widget.documentName) {
-      return const AppLoader(label: 'Loading purchase details...');
+      return const PurchaseDetailSkeleton();
     }
-    if (viewModel.detailErrorMessage != null) {
+    if (viewModel.detailErrorMessage != null &&
+        viewModel.selectedRecord == null) {
       return AppErrorWidget(
         message: viewModel.detailErrorMessage!,
         onRetry: () =>
@@ -96,7 +108,11 @@ class _PointOfPurchaseDetailScreenState
     }
     final record = viewModel.selectedRecord;
     if (record == null) {
-      return const AppLoader(label: 'Loading purchase details...');
+      return AppErrorWidget(
+        message: 'No purchase details were returned.',
+        onRetry: () =>
+            unawaited(viewModel.loadPointOfPurchase(widget.documentName)),
+      );
     }
 
     final displayedFields = <String>{
@@ -120,6 +136,7 @@ class _PointOfPurchaseDetailScreenState
         .toList();
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(AppDimensions.pageGutter),
       children: [
         _OverviewCard(record: record),
@@ -432,18 +449,18 @@ const _detailSections = <(String, List<String>)>[
       'advance_receivable_account',
     ],
   ),
-  (
-    'Record metadata',
-    [
-      'owner',
-      'creation',
-      'modified',
-      'modified_by',
-      'idx',
-      'naming_series',
-      'doctype',
-    ],
-  ),
+  // (
+  //   'Record metadata',
+  //   [
+  //     'owner',
+  //     'creation',
+  //     'modified',
+  //     'modified_by',
+  //     'idx',
+  //     'naming_series',
+  //     'doctype',
+  //   ],
+  // ),
 ];
 
 const _labels = <String, String>{

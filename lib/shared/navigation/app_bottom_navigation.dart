@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../../core/navigation/app_navigation.dart';
+
 import 'package:go_router/go_router.dart';
 
 import '../../config/routes/route_names.dart';
@@ -40,7 +43,7 @@ class AppBottomNavigation extends StatelessWidget {
     items: items,
     selectedIndex: navigationShell.currentIndex,
     onCreatePurchase: () async {
-      final created = await context.pushNamed<bool>(
+      final created = await context.pushNamedOnce<bool>(
         RouteNames.createPointOfPurchase,
       );
       if (created == true && context.mounted) {

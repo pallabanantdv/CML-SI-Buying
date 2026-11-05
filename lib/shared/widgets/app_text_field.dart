@@ -12,6 +12,7 @@ class AppTextField extends StatefulWidget {
     this.hint,
     this.helperText,
     this.validator,
+    this.autovalidateMode,
     this.keyboardType,
     this.prefixIcon,
     this.suffixIcon,
@@ -35,6 +36,7 @@ class AppTextField extends StatefulWidget {
   final String? hint;
   final String? helperText;
   final String? Function(String?)? validator;
+  final AutovalidateMode? autovalidateMode;
   final TextInputType? keyboardType;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
@@ -120,6 +122,7 @@ class _AppTextFieldState extends State<AppTextField> {
       focusNode: widget.focusNode,
       decoration: decoration,
       validator: widget.validator,
+      autovalidateMode: widget.autovalidateMode,
       obscureText: _obscureText,
       readOnly: widget.readOnly,
       enabled: widget.enabled,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/navigation/app_page_transitions.dart';
+
 import '../../config/theme/app_dimensions.dart';
 import '../../config/theme/app_spacing.dart';
 import 'app_svg_icon.dart';
@@ -39,6 +41,7 @@ class AppDropdown<T> extends StatelessWidget {
                 final selected = await showModalBottomSheet<T>(
                   context: context,
                   isScrollControlled: true,
+                  sheetAnimationStyle: AppPageTransitions.modalStyle(context),
                   useSafeArea: true,
                   backgroundColor: Theme.of(context).colorScheme.surface,
                   shape: RoundedRectangleBorder(

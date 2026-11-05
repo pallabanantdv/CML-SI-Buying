@@ -1,3 +1,8 @@
+import '../cache/cache_manager.dart';
+import '../cache/cache_service.dart';
+import '../network/connectivity_service.dart';
+import '../../config/environment/app_environment.dart';
+
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -30,7 +35,11 @@ class AppDependencies {
     required this.supplier,
     required this.profile,
     required this.preferences,
+    this.cache,
+    this.connectivity,
   });
+  final CacheManager? cache;
+  final ConnectivityService? connectivity;
   final AuthViewModel auth;
   final DashboardViewModel dashboard;
   final PointOfPurchaseViewModel pointOfPurchase;
@@ -49,17 +58,34 @@ abstract final class DependencyInjection {
       cookieJar: cookieJar,
       onUnauthorized: () async => auth.expireSession(),
     );
-    final api = ApiClient(dio);
+    final cacheStore = CacheService(const FlutterSecureStorage());
+    await cacheStore.initialize();
+    final connectivity = ConnectivityService();
+    await connectivity.initialize();
+    final cache = CacheManager(
+      cacheStore,
+      connectivity,
+      AppEnvironment.frappeBaseUrl,
+    );
+    final api = ApiClient(dio, cache: cache, connectivity: connectivity);
     final methods = FrappeMethodApi(api);
     final resources = FrappeResourceApi(api);
     final session = SessionService(storage);
-    final authRepository = AuthRepository(api, methods, session, cookieJar);
+    final authRepository = AuthRepository(
+      api,
+      methods,
+      session,
+      cookieJar,
+      cache: cache,
+    );
     auth = AuthViewModel(authRepository);
     return AppDependencies(
       auth: auth,
+      cache: cache,
+      connectivity: connectivity,
       dashboard: DashboardViewModel(const StaticDashboardRepository()),
       pointOfPurchase: PointOfPurchaseViewModel(
-        PointOfPurchaseRepository(resources),
+        PointOfPurchaseRepository(resources, methods: methods),
       ),
       supplier: SupplierViewModel(SupplierRepository(resources)),
       profile: ProfileViewModel(ProfileRepository(resources)),

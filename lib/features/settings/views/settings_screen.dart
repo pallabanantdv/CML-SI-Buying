@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+
+import '../../../core/navigation/app_navigation.dart';
+
 import 'package:provider/provider.dart';
 
 import '../../../config/constants/app_constants.dart';
@@ -108,7 +110,7 @@ class SettingsScreen extends StatelessWidget {
                       variant: AppButtonVariant.outlined,
                       icon: AppIconName.tune,
                       onPressed: () =>
-                          context.pushNamed(RouteNames.designSystem),
+                          context.pushNamedOnce(RouteNames.designSystem),
                     ),
                   ),
                 ],

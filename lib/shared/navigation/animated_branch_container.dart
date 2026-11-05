@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 
-/// Preserves each shell navigator while animating the active branch change.
+import '../../core/navigation/app_transition_config.dart';
+
+/// Branch navigators stay mounted; only the active branch paints or accepts input.
 class AnimatedBranchContainer extends StatefulWidget {
   const AnimatedBranchContainer({
     super.key,
     required this.currentIndex,
     required this.children,
   });
-
   final int currentIndex;
   final List<Widget> children;
-
   @override
   State<AnimatedBranchContainer> createState() =>
       _AnimatedBranchContainerState();
@@ -18,101 +18,59 @@ class AnimatedBranchContainer extends StatefulWidget {
 
 class _AnimatedBranchContainerState extends State<AnimatedBranchContainer>
     with SingleTickerProviderStateMixin {
-  static const _duration = Duration(milliseconds: 280);
-
-  late final AnimationController _controller;
-  late final Animation<double> _progress;
-  late int _activeIndex;
-  int? _previousIndex;
-  bool _reduceMotion = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _activeIndex = widget.currentIndex;
-    _controller = AnimationController(
-      vsync: this,
-      duration: _duration,
-      value: 1,
-    );
-    _progress = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-    _controller.addStatusListener(_onAnimationStatus);
-  }
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: AppTransitionConfig.bottomNavigation,
+    value: 1,
+  );
+  late final Animation<double> _opacity = _controller
+      .drive(CurveTween(curve: AppTransitionConfig.curve))
+      .drive(Tween(begin: AppTransitionConfig.initialTabOpacity, end: 1.0));
+  bool _reducedMotion = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _reduceMotion = MediaQuery.of(context).disableAnimations;
+    _reducedMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reducedMotion) _controller.value = 1;
   }
 
   @override
   void didUpdateWidget(covariant AnimatedBranchContainer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentIndex == widget.currentIndex) return;
-
-    _previousIndex = _activeIndex;
-    _activeIndex = widget.currentIndex;
-    if (_reduceMotion) {
-      _previousIndex = null;
+    if (_reducedMotion) {
       _controller.value = 1;
     } else {
       _controller.forward(from: 0);
     }
   }
 
-  void _onAnimationStatus(AnimationStatus status) {
-    if (status == AnimationStatus.completed && _previousIndex != null) {
-      setState(() => _previousIndex = null);
-    }
-  }
-
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _controller,
-    builder: (context, _) => Stack(
-      fit: StackFit.expand,
-      children: [
-        for (var index = 0; index < widget.children.length; index++)
-          _buildBranch(index),
-      ],
-    ),
-  );
-
-  Widget _buildBranch(int index) {
-    final isActive = index == _activeIndex;
-    final isPrevious = index == _previousIndex && !isActive;
-    final isVisible = isActive || isPrevious;
-    // Keep the navigator under the same ancestors for every visibility state.
-    // Changing Offstage into FadeTransition reparents its GlobalKey mid-build.
-    final slide = Tween<Offset>(
-      begin: isPrevious ? Offset.zero : const Offset(0.025, 0),
-      end: isPrevious ? const Offset(-0.025, 0) : Offset.zero,
-    ).animate(_progress);
-    return Offstage(
-      offstage: !isVisible,
-      child: TickerMode(
-        enabled: isActive,
-        child: IgnorePointer(
-          ignoring: !isActive,
-          child: FadeTransition(
-            opacity: isPrevious ? ReverseAnimation(_progress) : _progress,
-            child: SlideTransition(
-              position: slide,
-              child: widget.children[index],
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      for (var index = 0; index < widget.children.length; index++)
+        Offstage(
+          offstage: index != widget.currentIndex,
+          child: TickerMode(
+            enabled: index == widget.currentIndex,
+            child: IgnorePointer(
+              ignoring: index != widget.currentIndex,
+              child: ExcludeFocus(
+                excluding: index != widget.currentIndex,
+                child: FadeTransition(
+                  opacity: _opacity,
+                  child: RepaintBoundary(child: widget.children[index]),
+                ),
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
+    ],
+  );
   @override
   void dispose() {
-    _controller.removeStatusListener(_onAnimationStatus);
     _controller.dispose();
     super.dispose();
   }
