@@ -51,7 +51,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
               width: 32,
               height: 32,
               child: Image.asset(
-                'assets/images/CAML Logo.jpg.jpeg',
+                'assets/images/CAML Logo.png',
                 fit: BoxFit.cover,
                 semanticLabel: 'CAML logo',
               ),
@@ -61,7 +61,22 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
           Flexible(child: title),
         ],
       ),
-      actions: actions,
+      actions: actions
+          ?.map(
+            (action) => Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Center(
+                child: Material(
+                  color: Theme.of(context).colorScheme.primary
+                      .withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  clipBehavior: Clip.antiAlias,
+                  child: action,
+                ),
+              ),
+            ),
+          )
+          .toList(),
       bottom: bottom,
     );
   }
