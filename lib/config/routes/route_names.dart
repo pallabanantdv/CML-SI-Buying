@@ -9,6 +9,7 @@ abstract final class RouteNames {
   static const createSupplier = 'create-supplier';
   static const createPaymentEntry = 'create-payment-entry';
   static const paymentEntries = 'payment-entries';
+  static const paymentEntryDetails = 'payment-entry-details';
   static const supplierDetails = 'supplier-details';
   static const htmlPrintPreview = 'html-print-preview';
   static const profile = 'profile';

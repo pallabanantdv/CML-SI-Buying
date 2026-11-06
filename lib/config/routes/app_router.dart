@@ -6,6 +6,7 @@ import '../../features/supplier/viewmodels/supplier_viewmodel.dart';
 import '../../features/supplier/viewmodels/supplier_payment_viewmodel.dart';
 import '../../features/supplier/views/create_payment_entry_screen.dart';
 import '../../features/supplier/views/payment_entry_list_screen.dart';
+import '../../features/supplier/views/payment_entry_details.dart';
 import '../../features/supplier/viewmodels/payment_entry_list_viewmodel.dart';
 
 import '../constants/app_constants.dart';
@@ -190,6 +191,20 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
                 GoRoute(
                   path: 'payment-entries',
                   name: RouteNames.paymentEntries,
+                  routes: [
+                    GoRoute(
+                      path: ':documentName',
+                      name: RouteNames.paymentEntryDetails,
+                      pageBuilder: (context, state) => AppPageTransitions.page(
+                        context,
+                        state,
+                        PaymentEntryDetailsScreen(
+                          documentName: state.pathParameters['documentName']!,
+                        ),
+                        duration: AppTransitionConfig.detail,
+                      ),
+                    ),
+                  ],
                   builder: (context, state) => ChangeNotifierProvider(
                     create: (_) => PaymentEntryListViewModel(
                       context.read<SupplierViewModel>().repository.payments,

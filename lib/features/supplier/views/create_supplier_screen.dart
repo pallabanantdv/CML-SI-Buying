@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
 import '../../../shared/widgets/app_app_bar.dart';
+import '../../../shared/widgets/app_dropdown.dart';
 import '../../../shared/widgets/app_form_action_bar.dart';
 import '../../../shared/widgets/app_snackbar.dart';
 import '../../../shared/widgets/app_card.dart';
@@ -30,6 +31,7 @@ class CreateSupplierScreen extends StatefulWidget {
 
 class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _addressExpansionController = ExpansibleController();
   late final TextEditingController _nameController;
   late final TextEditingController _groupController;
   String _supplierType = 'Company';
@@ -81,20 +83,12 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        DropdownButtonFormField<String>(
+        AppDropdown<String>(
           key: ValueKey('$doctype-${options.join('|')}'),
-          initialValue: options.contains(controller.text)
-              ? controller.text
-              : null,
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: '$doctype${required ? ' *' : ''}',
-            helperText: loading
-                ? 'Loading...'
-                : error == null && options.isEmpty
-                ? 'No records available'
-                : null,
-          ),
+          value: options.contains(controller.text) ? controller.text : null,
+          label: '$doctype${required ? ' *' : ''}',
+          hint: 'Select ${doctype.toLowerCase()}',
+          enabled: !loading && options.isNotEmpty,
           items: [
             for (final option in options)
               DropdownMenuItem(
@@ -105,11 +99,19 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
           onChanged: loading || options.isEmpty
               ? null
               : (value) {
-                  controller.text = value ?? '';
+                  setState(() => controller.text = value ?? '');
                   context.read<SupplierViewModel>().clearError();
                 },
           validator: required ? _required : null,
         ),
+        if (loading || (error == null && options.isEmpty))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+            child: Text(
+              loading ? 'Loading...' : 'No records available',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         if (error != null) ...[
           Text(
             error,
@@ -229,6 +231,7 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
 
   @override
   void dispose() {
+    _addressExpansionController.dispose();
     _nameController.dispose();
     _groupController.dispose();
     _countryController.dispose();
@@ -360,16 +363,10 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                         required: true,
                       ),
                       const SizedBox(height: AppSpacing.sectionGap),
-                      DropdownButtonFormField<String>(
-                        initialValue: _supplierType,
-                        decoration: const InputDecoration(
-                          labelText: 'Supplier type',
-                        ),
-                        icon: AppSvgIcon(
-                          icon: AppIconName.expandMore,
-                          size: 18,
-                        ),
-                        isExpanded: true,
+                      AppDropdown<String>(
+                        value: _supplierType,
+                        label: 'Supplier type',
+                        hint: 'Select supplier type',
                         items: [
                           for (final type in _supplierTypes)
                             DropdownMenuItem(value: type, child: Text(type)),
@@ -420,49 +417,69 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                 ),
                 const SizedBox(height: AppSpacing.sectionGap),
                 AppCard(
-                  title: 'Primary Address Details',
-                  child: Column(
+                  padding: EdgeInsets.zero,
+                  child: ExpansionTile(
+                    controller: _addressExpansionController,
+                    initiallyExpanded: false,
+                    maintainState: true,
+                    shape: const Border(),
+                    collapsedShape: const Border(),
+                    title: Text(
+                      'Primary Address Details',
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    childrenPadding: const EdgeInsets.fromLTRB(
+                      AppSpacing.cardPadding,
+                      0,
+                      AppSpacing.cardPadding,
+                      AppSpacing.cardPadding,
+                    ),
                     children: [
-                      _field(
-                        controller: _addressLine1Controller,
-                        label: 'Address Line 1',
-                        validator: (value) =>
-                            _hasAddress ? _required(value) : null,
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      _field(
-                        controller: _addressLine2Controller,
-                        label: 'Address Line 2',
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      _field(
-                        controller: _zipController,
-                        label: 'ZIP Code',
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      _field(
-                        controller: _cityController,
-                        label: 'City',
-                        validator: (value) =>
-                            _hasAddress ? _required(value) : null,
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      _field(
-                        controller: _stateController,
-                        label: 'State',
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      _field(
-                        controller: _countryController,
-                        label: 'Country',
-                        required: true,
-                        validator: _required,
-                        textInputAction: TextInputAction.done,
+                      Column(
+                        children: [
+                          _field(
+                            controller: _addressLine1Controller,
+                            label: 'Address Line 1',
+                            validator: (value) =>
+                                _hasAddress ? _required(value) : null,
+                            textInputAction: TextInputAction.next,
+                          ),
+                          const SizedBox(height: AppSpacing.sectionGap),
+                          _field(
+                            controller: _addressLine2Controller,
+                            label: 'Address Line 2',
+                            textInputAction: TextInputAction.next,
+                          ),
+                          const SizedBox(height: AppSpacing.sectionGap),
+                          _field(
+                            controller: _zipController,
+                            label: 'ZIP Code',
+                            textInputAction: TextInputAction.next,
+                          ),
+                          const SizedBox(height: AppSpacing.sectionGap),
+                          _field(
+                            controller: _cityController,
+                            label: 'City',
+                            validator: (value) =>
+                                _hasAddress ? _required(value) : null,
+                            textInputAction: TextInputAction.next,
+                          ),
+                          const SizedBox(height: AppSpacing.sectionGap),
+                          _field(
+                            controller: _stateController,
+                            label: 'State',
+                            textInputAction: TextInputAction.next,
+                          ),
+                          const SizedBox(height: AppSpacing.sectionGap),
+                          _field(
+                            controller: _countryController,
+                            label: 'Country',
+                            required: true,
+                            validator: _required,
+                            textInputAction: TextInputAction.done,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -552,6 +569,15 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
   Future<void> _submit() async {
     if (_pickingImage || context.read<SupplierViewModel>().isSaving) return;
     FocusScope.of(context).unfocus();
+    // Reveal invalid address fields before scrolling to the first form error.
+    if ((_hasAddress &&
+            (_required(_addressLine1Controller.text) != null ||
+                _required(_cityController.text) != null)) ||
+        _required(_countryController.text) != null) {
+      _addressExpansionController.expand();
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+    }
     if (!await validateAndReveal(_formKey) || !mounted) return;
 
     final fields = <String, dynamic>{

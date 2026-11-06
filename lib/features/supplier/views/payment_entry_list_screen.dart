@@ -188,6 +188,10 @@ class _PaymentEntryListScreenState extends State<PaymentEntryListScreen> {
     final colors = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return AppCard(
+      onTap: () => context.pushNamedOnce<void>(
+        RouteNames.paymentEntryDetails,
+        pathParameters: {'documentName': name},
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

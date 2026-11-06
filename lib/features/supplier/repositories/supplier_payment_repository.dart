@@ -9,6 +9,17 @@ class SupplierPaymentRepository {
   final FrappeResourceApi api;
 
   static const pageSize = 50;
+
+  Future<Map<String, dynamic>> details(String name) async {
+    final record = await api.getDoc('Payment Entry', name);
+    if (record['name'] != name ||
+        record['party_type'] != 'Supplier' ||
+        record['payment_type'] != 'Pay') {
+      throw const AppException('This supplier payment entry is unavailable.');
+    }
+    return record;
+  }
+
   Future<List<Map<String, dynamic>>> entries({int offset = 0, int? status}) =>
       api.getDocList(
         'Payment Entry',

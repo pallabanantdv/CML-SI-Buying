@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/navigation/app_page_transitions.dart';
-
 import '../../config/theme/app_dimensions.dart';
 import '../../config/theme/app_spacing.dart';
 import 'app_svg_icon.dart';
@@ -27,61 +26,83 @@ class AppDropdown<T> extends StatelessWidget {
   final String? hint;
 
   @override
-  Widget build(BuildContext context) => FormField<T>(
-    key: ValueKey(value),
-    initialValue: value,
-    validator: validator,
-    builder: (field) {
-      final selectedItem = _selectedItem(field.value);
-      final canSelect = enabled && onChanged != null;
-
-      return InkWell(
-        onTap: canSelect
-            ? () async {
-                final selected = await showModalBottomSheet<T>(
-                  context: context,
-                  isScrollControlled: true,
-                  sheetAnimationStyle: AppPageTransitions.modalStyle(context),
-                  useSafeArea: true,
-                  backgroundColor: Theme.of(context).colorScheme.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(AppDimensions.dialogRadius),
-                    ),
-                  ),
-                  builder: (context) => _SearchableDropdownSheet<T>(
-                    label: label.replaceAll(' *', '').trim(),
-                    items: items,
-                    selectedValue: field.value,
-                  ),
-                );
-
-                if (selected == null || !context.mounted) return;
-                field.didChange(selected);
-                onChanged?.call(selected);
-              }
-            : null,
-        borderRadius: BorderRadius.circular(AppDimensions.fieldRadius),
-        child: InputDecorator(
-          isFocused: false,
-          isEmpty: selectedItem == null,
-          decoration: InputDecoration(
-            labelText: label,
-            errorMaxLines: 3,
-            hintText: hint,
-            hintStyle: Theme.of(context).textTheme.labelMedium,
-            enabled: canSelect,
-            errorText: field.errorText,
-            suffixIcon: const Padding(
-              padding: EdgeInsets.all(12),
-              child: AppSvgIcon(icon: AppIconName.expandMore, size: 18),
-            ),
-          ),
-          child: selectedItem?.child ?? const SizedBox.shrink(),
+  Widget build(BuildContext context) {
+    if (items.where((item) => item.enabled).length < 10) {
+      return DropdownButtonFormField<T>(
+        key: ValueKey(value),
+        initialValue: value,
+        items: items,
+        onChanged: enabled ? onChanged : null,
+        validator: validator,
+        isExpanded: true,
+        borderRadius: BorderRadius.circular(AppDimensions.dialogRadius),
+        dropdownColor: Theme.of(context).colorScheme.surface,
+        icon: const AppSvgIcon(icon: AppIconName.expandMore, size: 18),
+        decoration: InputDecoration(
+          labelText: label,
+          errorMaxLines: 3,
+          hintText: hint,
+          hintStyle: Theme.of(context).textTheme.labelMedium,
+          enabled: enabled && onChanged != null,
         ),
       );
-    },
-  );
+    }
+    return FormField<T>(
+      key: ValueKey(value),
+      initialValue: value,
+      validator: validator,
+      builder: (field) {
+        final selectedItem = _selectedItem(field.value);
+        final canSelect = enabled && onChanged != null;
+
+        return InkWell(
+          onTap: canSelect
+              ? () async {
+                  final selected = await showModalBottomSheet<T>(
+                    context: context,
+                    isScrollControlled: true,
+                    sheetAnimationStyle: AppPageTransitions.modalStyle(context),
+                    useSafeArea: true,
+                    backgroundColor: Theme.of(context).colorScheme.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(AppDimensions.dialogRadius),
+                      ),
+                    ),
+                    builder: (context) => _SearchableDropdownSheet<T>(
+                      label: label.replaceAll(' *', '').trim(),
+                      items: items,
+                      selectedValue: field.value,
+                    ),
+                  );
+
+                  if (selected == null || !context.mounted) return;
+                  field.didChange(selected);
+                  onChanged?.call(selected);
+                }
+              : null,
+          borderRadius: BorderRadius.circular(AppDimensions.fieldRadius),
+          child: InputDecorator(
+            isFocused: false,
+            isEmpty: selectedItem == null,
+            decoration: InputDecoration(
+              labelText: label,
+              errorMaxLines: 3,
+              hintText: hint,
+              hintStyle: Theme.of(context).textTheme.labelMedium,
+              enabled: canSelect,
+              errorText: field.errorText,
+              suffixIcon: const Padding(
+                padding: EdgeInsets.all(12),
+                child: AppSvgIcon(icon: AppIconName.expandMore, size: 18),
+              ),
+            ),
+            child: selectedItem?.child ?? const SizedBox.shrink(),
+          ),
+        );
+      },
+    );
+  }
 
   DropdownMenuItem<T>? _selectedItem(T? selectedValue) {
     for (final item in items) {
@@ -121,6 +142,7 @@ class _SearchableDropdownSheetState<T>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final showSearch = widget.items.where((item) => item.enabled).length >= 10;
     final query = _query.trim().toLowerCase();
     final filteredItems = widget.items
         .where((item) {
@@ -154,25 +176,26 @@ class _SearchableDropdownSheetState<T>
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.standard,
-                  vertical: AppSpacing.small,
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  autofocus: true,
-                  onChanged: (value) => setState(() => _query = value),
-                  decoration: InputDecoration(
-                    hintText: 'Search ${widget.label.toLowerCase()}',
-                    hintStyle: theme.textTheme.labelMedium,
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: AppSvgIcon(icon: AppIconName.search, size: 20),
+              if (showSearch)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.standard,
+                    vertical: AppSpacing.small,
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    onChanged: (value) => setState(() => _query = value),
+                    decoration: InputDecoration(
+                      hintText: 'Search ${widget.label.toLowerCase()}',
+                      hintStyle: theme.textTheme.labelMedium,
+                      prefixIcon: const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: AppSvgIcon(icon: AppIconName.search, size: 20),
+                      ),
                     ),
                   ),
                 ),
-              ),
               Expanded(
                 child: filteredItems.isEmpty
                     ? Center(
