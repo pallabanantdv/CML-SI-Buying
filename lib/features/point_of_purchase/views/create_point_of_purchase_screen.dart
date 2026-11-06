@@ -610,155 +610,156 @@ class _CreatePointOfPurchaseScreenState
     ]),
   );
 
-  Widget _paymentAndAccountsSection(PointOfPurchaseViewModel viewModel) =>
-      AppCard(
-        tone: AppCardTone.success,
-        showAccentBar: false,
-        title: 'Payment and accounts',
-        leading: const AppSvgIcon(icon: AppIconName.inventory),
-        child: Column(
-          children: [
-            if (_loadingWarehouseAccounts) ...[
-              const LinearProgressIndicator(),
-              const SizedBox(height: AppSpacing.medium),
-              const Text('Loading warehouse accounts...'),
-              const SizedBox(height: AppSpacing.medium),
-            ],
-            if (_warehouseAccountsError != null) ...[
-              _MessagePanel(
-                message: _warehouseAccountsError!,
-                isError: true,
-                action: TextButton(
-                  onPressed: () => unawaited(_loadWarehouseAccounts(viewModel)),
-                  child: const Text('Retry'),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.medium),
-            ],
-            _fieldGrid([
-              _linkField(
-                viewModel,
-                'mode_of_payment',
-                'Mode of Payment',
-                'Mode of Payment',
-                required: _grandTotal > 0,
-              ),
-              _textField(
-                'payment_amount',
-                'Payment Amount (\$)',
-                required: _grandTotal > 0,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                validator: _grandTotal > 0 ? _requiredNumber : _optionalNumber,
-              ),
-              _linkField(
-                viewModel,
-                'default_accepted_warehouse',
-                'Default Accepted Warehouse *',
-                'Warehouse',
-                required: true,
-              ),
-              _linkField(viewModel, 'vesel', 'Vessel', 'Supplier'),
-              _readOnlyValue(
-                'Vessel Name',
-                _findOption(
-                      viewModel.supplierOptions,
-                      _links['vesel'],
-                    )?['title']?.toString() ??
-                    '',
-              ),
-              // Row(
-              //   children: [
-              //     Expanded(
-              //       child: _linkField(
-              //         viewModel,
-              //         'bank_account',
-              //         'Bank Account',
-              //         'Account',
-              //       ),
-              //     ),
-              //     const SizedBox(width: AppSpacing.medium),
-              //     Expanded(
-              //       child: _linkField(
-              //         viewModel,
-              //         'cash_account',
-              //         'Cash Account',
-              //         'Account',
-              //       ),
-              //     ),
-              //   ],
-              // ),
-
-              _linkField(viewModel, 'bank_account', 'Bank Account', 'Account'),
-              _linkField(viewModel, 'cash_account', 'Cash Account', 'Account'),
-              _linkField(
-                viewModel,
-                'supplier_payable_account',
-                'Supplier Payable Account',
-                'Account',
-              ),
-              _linkField(
-                viewModel,
-                'othershipping_account',
-                'Other/Shipping Account',
-                'Account',
-              ),
-
-              // Row(
-              //   children: [
-              //     Expanded(
-              //       child: _linkField(
-              //         viewModel,
-              //         'inventory_account',
-              //         'Inventory Account',
-              //         'Account',
-              //       ),
-              //     ),
-              //     const SizedBox(width: AppSpacing.medium),
-              //     Expanded(
-              //       child: _linkField(
-              //         viewModel,
-              //         'advance_receivable_account',
-              //         'Advance Receivable Account',
-              //         'Account',
-              //       ),
-              //     ),
-              //   ],
-              // ),
-              _linkField(
-                viewModel,
-                'inventory_account',
-                'Inventory Account',
-                'Account',
-              ),
-              _linkField(
-                viewModel,
-                'advance_receivable_account',
-                'Advance Receivable Account',
-                'Account',
-              ),
-              // _readOnlyValue('Paid To', 'Set by ERP'),
-              // _readOnlyValue('Paid From', 'Set by ERP'),
-              // _readOnlyValue('Other/Shipping Account', 'Set by ERP'),
-              // _readOnlyValue('Amended From', 'Only for amended records'),
-            ]),
-            const SizedBox(height: AppSpacing.medium),
-            AppCheckbox(
-              value: _instantPaid,
-              label: 'Is Paid',
-              onChanged: (value) {
-                setState(() {
-                  _instantPaid = value ?? false;
-                  if (_instantPaid && _cashPayments.isEmpty) {
-                    _cashPayments.add(_CashPaymentDraft());
-                  }
-                });
-              },
+  Widget _paymentAndAccountsSection(
+    PointOfPurchaseViewModel viewModel,
+  ) => AppCard(
+    tone: AppCardTone.success,
+    showAccentBar: false,
+    title: 'Payment and accounts',
+    leading: const AppSvgIcon(icon: AppIconName.inventory),
+    child: Column(
+      children: [
+        if (_loadingWarehouseAccounts) ...[
+          const LinearProgressIndicator(),
+          const SizedBox(height: AppSpacing.medium),
+          const Text('Loading warehouse accounts...'),
+          const SizedBox(height: AppSpacing.medium),
+        ],
+        if (_warehouseAccountsError != null) ...[
+          _MessagePanel(
+            message: _warehouseAccountsError!,
+            isError: true,
+            action: TextButton(
+              onPressed: () => unawaited(_loadWarehouseAccounts(viewModel)),
+              child: const Text('Retry'),
             ),
-          ],
+          ),
+          const SizedBox(height: AppSpacing.medium),
+        ],
+        _fieldGrid([
+          // _linkField(
+          //   viewModel,
+          //   'mode_of_payment',
+          //   'Mode of Payment',
+          //   'Mode of Payment',
+          //   required: _grandTotal > 0,
+          // ),
+          // _textField(
+          //   'payment_amount',
+          //   'Payment Amount (\$)',
+          //   required: _grandTotal > 0,
+          //   keyboardType: const TextInputType.numberWithOptions(
+          //     decimal: true,
+          //   ),
+          //   validator: _grandTotal > 0 ? _requiredNumber : _optionalNumber,
+          // ),
+          _linkField(
+            viewModel,
+            'default_accepted_warehouse',
+            'Default Accepted Warehouse *',
+            'Warehouse',
+            required: true,
+          ),
+          _linkField(viewModel, 'vesel', 'Vessel', 'Supplier'),
+          _readOnlyValue(
+            'Vessel Name',
+            _findOption(
+                  viewModel.supplierOptions,
+                  _links['vesel'],
+                )?['title']?.toString() ??
+                '',
+          ),
+          // Row(
+          //   children: [
+          //     Expanded(
+          //       child: _linkField(
+          //         viewModel,
+          //         'bank_account',
+          //         'Bank Account',
+          //         'Account',
+          //       ),
+          //     ),
+          //     const SizedBox(width: AppSpacing.medium),
+          //     Expanded(
+          //       child: _linkField(
+          //         viewModel,
+          //         'cash_account',
+          //         'Cash Account',
+          //         'Account',
+          //       ),
+          //     ),
+          //   ],
+          // ),
+
+          _linkField(viewModel, 'bank_account', 'Bank Account', 'Account'),
+          _linkField(viewModel, 'cash_account', 'Cash Account', 'Account'),
+          _linkField(
+            viewModel,
+            'supplier_payable_account',
+            'Supplier Payable Account',
+            'Account',
+          ),
+          _linkField(
+            viewModel,
+            'othershipping_account',
+            'Other/Shipping Account',
+            'Account',
+          ),
+
+          // Row(
+          //   children: [
+          //     Expanded(
+          //       child: _linkField(
+          //         viewModel,
+          //         'inventory_account',
+          //         'Inventory Account',
+          //         'Account',
+          //       ),
+          //     ),
+          //     const SizedBox(width: AppSpacing.medium),
+          //     Expanded(
+          //       child: _linkField(
+          //         viewModel,
+          //         'advance_receivable_account',
+          //         'Advance Receivable Account',
+          //         'Account',
+          //       ),
+          //     ),
+          //   ],
+          // ),
+          _linkField(
+            viewModel,
+            'inventory_account',
+            'Inventory Account',
+            'Account',
+          ),
+          _linkField(
+            viewModel,
+            'advance_receivable_account',
+            'Advance Receivable Account',
+            'Account',
+          ),
+          // _readOnlyValue('Paid To', 'Set by ERP'),
+          // _readOnlyValue('Paid From', 'Set by ERP'),
+          // _readOnlyValue('Other/Shipping Account', 'Set by ERP'),
+          // _readOnlyValue('Amended From', 'Only for amended records'),
+        ]),
+        const SizedBox(height: AppSpacing.medium),
+        AppCheckbox(
+          value: _instantPaid,
+          label: 'Is Paid',
+          onChanged: (value) {
+            setState(() {
+              _instantPaid = value ?? false;
+              if (_instantPaid && _cashPayments.isEmpty) {
+                _cashPayments.add(_CashPaymentDraft());
+              }
+            });
+          },
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _erpFieldsSection(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.neutral,
@@ -1537,13 +1538,14 @@ class _CreatePointOfPurchaseScreenState
       'ship_payment': _shipPayment,
       'total_deduction': _deductionTotal,
       'advances': _number(_fieldText('advances')),
+      'custom_paid_advance': viewModel.availableAdvance,
       'net_payable': _netPayable,
       'contract_no': _fieldText('contract_no'),
       'ref_pv_no': _fieldText('ref_pv_no'),
-      'mode_of_payment': _links['mode_of_payment'],
-      'payment_amount': _number(_fieldText('payment_amount')),
-      'paid': 0,
-      'gst': 0,
+      // 'mode_of_payment': _links['mode_of_payment'],
+      // 'payment_amount': _number(_fieldText('payment_amount')),
+      // 'paid': 0,
+      // 'gst': 0,
       'instant_paid': _instantPaid ? 1 : 0,
       'bank_account': _links['bank_account'],
       'cash_account': _links['cash_account'],
@@ -1563,7 +1565,10 @@ class _CreatePointOfPurchaseScreenState
                 0,
                 (sum, row) => sum + _number('${row['qty'] ?? 0}'),
               ),
-      'advance': _allocationRows(viewModel),
+      'advance': [
+        for (final row in _allocationRows(viewModel))
+          {...row, 'reference_type': 'Payment Entry'},
+      ],
       if (_instantPaid || _isEditing)
         'pop_cash_payment': _instantPaid ? cashPaymentRows : [],
     };

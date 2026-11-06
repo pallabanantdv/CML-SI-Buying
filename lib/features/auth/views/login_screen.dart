@@ -48,7 +48,7 @@ class LoginScreen extends StatelessWidget {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Image.asset(
-                              'assets/images/CAML Logo.jpg.jpeg',
+                              'assets/images/CAML Logo.png',
                               width: 96,
                               height: 96,
                               fit: BoxFit.contain,

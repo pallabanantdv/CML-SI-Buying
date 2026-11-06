@@ -268,7 +268,7 @@ class _SplashScreenState extends State<SplashScreen>
     ),
     child: ClipOval(
       child: Image.asset(
-        'assets/images/CAML Logo.jpg.jpeg',
+        'assets/images/CAML Logo.png',
         fit: BoxFit.cover,
         excludeFromSemantics: true,
       ),

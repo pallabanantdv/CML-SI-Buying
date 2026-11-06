@@ -256,7 +256,7 @@ void main() {
   );
 
   test(
-    'logs redact credentials, business values, nested JSON and URL identifiers',
+    'logs show business values while masking credentials and nested secrets',
     () {
       final safe = SafeLoggingInterceptor.sanitize({
         'Authorization': 'Bearer secret',
@@ -265,19 +265,21 @@ void main() {
         ],
         '_server_messages': '["private error"]',
         'cookie': 'sid=secret',
+        'doc': '{"cash_account":"Cash","api_key":"nested-secret"}',
       }).toString();
-      expect(safe, isNot(contains('Private')));
+      expect(safe, contains('Private'));
       expect(safe, isNot(contains('secret')));
-      expect(safe, isNot(contains('100')));
-      expect(safe, isNot(contains('private error')));
-      expect(
-        SafeLoggingInterceptor.safeUrl(
-          Uri.parse(
-            'https://user:pass@example.com/api/resource/Supplier/Private?token=secret',
-          ),
+      expect(safe, contains('100'));
+      expect(safe, contains('private error'));
+      expect(safe, contains('Cash'));
+      final url = SafeLoggingInterceptor.safeUrl(
+        Uri.parse(
+          'https://user:pass@example.com/api/resource/Supplier/Private?token=secret',
         ),
-        isNot(contains('Private')),
       );
+      expect(url, contains('Private'));
+      expect(url, isNot(contains('secret')));
+      expect(url, isNot(contains('user:pass')));
     },
   );
 }

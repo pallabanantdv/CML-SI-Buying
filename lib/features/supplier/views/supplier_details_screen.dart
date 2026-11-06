@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../config/theme/app_dimensions.dart';
-import '../../../config/theme/app_spacing.dart';
-import '../../../shared/widgets/app_app_bar.dart';
 import '../../../shared/widgets/app_card.dart';
-import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_expandable_section.dart';
-import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_info_row.dart';
+import '../../../core/models/html_print_document.dart';
+import '../../../core/widgets/html_print_preview_screen.dart';
+import '../../../shared/widgets/app_app_bar.dart';
+import '../../../shared/widgets/app_error_widget.dart';
+import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/skeleton/skeleton.dart';
 import '../viewmodels/supplier_viewmodel.dart';
 
@@ -23,6 +24,11 @@ class SupplierDetailsScreen extends StatefulWidget {
 }
 
 class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
+  HtmlPrintDocument? _preview;
+  bool _loading = true;
+  String? _error;
+  int _request = 0;
+
   @override
   void initState() {
     super.initState();
@@ -32,7 +38,12 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
   @override
   void didUpdateWidget(covariant SupplierDetailsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.supplierId != widget.supplierId) _scheduleLoad();
+    if (oldWidget.supplierId != widget.supplierId) {
+      ++_request;
+      _preview = null;
+      _loading = true;
+      _scheduleLoad();
+    }
   }
 
   void _scheduleLoad() {
@@ -41,133 +52,179 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
         unawaited(
           context.read<SupplierViewModel>().loadSupplier(widget.supplierId),
         );
+        unawaited(_loadPreview());
       }
     });
   }
 
+  Future<void> _loadPreview() async {
+    final request = ++_request;
+    final vm = context.read<SupplierViewModel>();
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final document = await vm.loadPrintPreview(widget.supplierId);
+    if (!mounted || request != _request) return;
+    setState(() {
+      _preview = document;
+      _loading = false;
+      _error = document == null
+          ? vm.printError ?? 'Unable to load the supplier card. Please retry.'
+          : null;
+    });
+  }
+
   @override
-  Widget build(BuildContext context) => Consumer<SupplierViewModel>(
-    builder: (context, vm, _) {
-      final matches = vm.selectedSupplierId == widget.supplierId;
-      final record = matches ? vm.selectedSupplier : null;
-      final loading =
-          !matches ||
-          (record == null &&
-              (vm.isLoadingDetail || vm.detailErrorMessage == null));
-      return Scaffold(
-        appBar: const AppAppBar(
-          title: AppHeaderTitle(title: 'Supplier details'),
-        ),
-        body: SafeArea(
-          top: false,
-          child: Center(
+  Widget build(BuildContext context) => Scaffold(
+    appBar: const AppAppBar(title: AppHeaderTitle(title: 'Supplier details')),
+    body: SafeArea(
+      top: false,
+      child: Consumer<SupplierViewModel>(
+        builder: (context, vm, _) {
+          final record = vm.selectedSupplierId == widget.supplierId
+              ? vm.selectedSupplier
+              : null;
+          final groupedKeys = _groups.values.expand((keys) => keys).toSet();
+          final remaining =
+              record?.entries
+                  .where(
+                    (entry) =>
+                        !groupedKeys.contains(entry.key) && _visible(entry.key),
+                  )
+                  .toList() ??
+              [];
+          return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(
                 maxWidth: AppDimensions.detailContentMaxWidth,
               ),
-              child: SkeletonReveal(
-                loading: loading,
-                child: loading
-                    ? const _SupplierDetailsSkeleton()
-                    : record == null
-                    ? AppErrorWidget(
-                        message:
-                            vm.detailErrorMessage ??
-                            'No supplier details were returned.',
-                        onRetry: () =>
-                            unawaited(vm.loadSupplier(widget.supplierId)),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: () => vm.loadSupplier(widget.supplierId),
-                        child: _details(record, vm.detailErrorMessage),
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await Future.wait([
+                    vm.loadSupplier(widget.supplierId),
+                    _loadPreview(),
+                  ]);
+                },
+                child: ListView(
+                  key: PageStorageKey('supplier-details-${widget.supplierId}'),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  // padding: const EdgeInsets.all(16),
+                  children: [
+                    SizedBox(
+                      // color: Colors.red,
+                      height: MediaQuery.sizeOf(context).height * 0.3,
+                      child: _loading
+                          ? const SkeletonShimmer(
+                              label: 'Loading supplier card...',
+                              child: SkeletonBox(height: 260),
+                            )
+                          : _error != null
+                          ? AppErrorWidget(
+                              message: _error!,
+                              onRetry: _loadPreview,
+                            )
+                          : HtmlPrintPreviewScreen(
+                              key: ObjectKey(_preview),
+                              embedded: true,
+                              cardOnly: true,
+                              htmlContent: _preview!.html,
+                              title: _preview!.title,
+                              baseUrl: _preview!.baseUrl,
+                              cookies: _preview!.cookies,
+                            ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (record != null) ...[
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          children: [
+                            AppCard(
+                              title:
+                                  record['supplier_name']?.toString() ??
+                                  widget.supplierId,
+                              subtitle: widget.supplierId,
+                            ),
+                            for (final group in _groups.entries)
+                              if (group.value.any(record.containsKey)) ...[
+                                const SizedBox(height: 16),
+                                AppCard(
+                                  title: group.key,
+                                  child: _fields({
+                                    for (final key in group.value)
+                                      if (record.containsKey(key))
+                                        key: record[key],
+                                  }),
+                                ),
+                              ],
+                            // if (remaining.isNotEmpty) ...[
+                            //   const SizedBox(height: 16),
+                            //   AppCard(
+                            //     title: 'Additional details',
+                            //     child: _fields(Map.fromEntries(remaining)),
+                            //   ),
+                            // ],
+                          ],
+                        ),
                       ),
+                    ] else if (vm.isLoadingDetail)
+                      const SkeletonShimmer(
+                        label: 'Loading supplier details...',
+                        child: SkeletonInfoRows(count: 5),
+                      ),
+                    if (vm.detailErrorMessage != null)
+                      AppErrorWidget(
+                        message: vm.detailErrorMessage!,
+                        onRetry: () => vm.loadSupplier(widget.supplierId),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ),
-      );
-    },
+          );
+        },
+      ),
+    ),
   );
 
-  Widget _details(Map<String, dynamic> record, String? error) {
-    const groups = <String, List<String>>{
-      'Supplier information': [
-        'name',
-        'supplier_name',
-        'supplier_group',
-        'supplier_type',
-        'custom_status',
-        'disabled',
-        'is_frozen',
-        'on_hold',
-      ],
-      'Contact and address': [
-        'custom_contact_number',
-        'mobile_no',
-        'phone',
-        'email_id',
-        'website',
-        'supplier_primary_contact',
-        'primary_contact',
-        'supplier_primary_address',
-        'primary_address',
-        'village',
-        'custom_island',
-        'province',
-        'country',
-      ],
-      'Tax and payment information': [
-        'tax_id',
-        'tax_category',
-        'tax_withholding_category',
-        'default_currency',
-        'default_bank_account',
-        'payment_terms',
-        'is_internal_supplier',
-        'represents_company',
-      ],
-    };
-    final groupedKeys = groups.values.expand((keys) => keys).toSet();
-    final remaining = record.entries
-        .where((e) => !groupedKeys.contains(e.key) && _visible(e.key))
-        .toList();
-    return ListView(
-      key: PageStorageKey('supplier-details-${widget.supplierId}'),
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(AppDimensions.pageGutter),
-      children: [
-        AppCard(
-          title: record['supplier_name']?.toString() ?? widget.supplierId,
-          subtitle: widget.supplierId,
-        ),
-        if (error != null) ...[
-          const SizedBox(height: AppSpacing.cardGap),
-          Text(
-            error,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        ],
-        for (final group in groups.entries)
-          if (group.value.any(record.containsKey)) ...[
-            const SizedBox(height: AppSpacing.cardGap),
-            AppCard(
-              title: group.key,
-              child: _fields({
-                for (final key in group.value)
-                  if (record.containsKey(key)) key: record[key],
-              }),
-            ),
-          ],
-        if (remaining.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.cardGap),
-          AppCard(
-            title: 'Additional details',
-            child: _fields(Map.fromEntries(remaining)),
-          ),
-        ],
-      ],
-    );
-  }
+  static const _groups = <String, List<String>>{
+    'Supplier information': [
+      'name',
+      'supplier_name',
+      'supplier_group',
+      'supplier_type',
+      'custom_status',
+      'disabled',
+      'is_frozen',
+      'on_hold',
+    ],
+    'Contact and address': [
+      'custom_contact_number',
+      'mobile_no',
+      'phone',
+      'email_id',
+      'website',
+      'supplier_primary_contact',
+      'primary_contact',
+      'supplier_primary_address',
+      'primary_address',
+      'village',
+      'custom_island',
+      'province',
+      'country',
+    ],
+    'Tax and payment information': [
+      'tax_id',
+      'tax_category',
+      'tax_withholding_category',
+      'default_currency',
+      'default_bank_account',
+      'payment_terms',
+      'is_internal_supplier',
+      'represents_company',
+    ],
+  };
 
   static bool _visible(String key) =>
       !key.startsWith('_') &&
@@ -242,21 +299,4 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
         )
         .join(' ');
   }
-}
-
-class _SupplierDetailsSkeleton extends StatelessWidget {
-  const _SupplierDetailsSkeleton();
-  @override
-  Widget build(BuildContext context) => SkeletonShimmer(
-    label: 'Loading supplier details...',
-    child: ListView(
-      padding: const EdgeInsets.all(AppDimensions.pageGutter),
-      children: [
-        for (var i = 0; i < 3; i++) ...[
-          const SkeletonCard(child: SkeletonInfoRows(count: 5)),
-          const SizedBox(height: AppSpacing.cardGap),
-        ],
-      ],
-    ),
-  );
 }

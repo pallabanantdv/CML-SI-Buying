@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../config/theme/app_dimensions.dart';
-import '../../config/theme/app_spacing.dart';
 import '../../config/theme/app_colors.dart';
 import 'app_svg_icon.dart';
 
@@ -97,7 +96,7 @@ class AppButton extends StatelessWidget {
             child: Opacity(opacity: 0, child: _labelContent(context)),
           ),
           SizedBox.square(
-            dimension: 18,
+            dimension: 16,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               color: spinnerColor,
@@ -125,8 +124,8 @@ class AppButton extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        AppSvgIcon(icon: icon!, size: 18, color: iconColor),
-        const SizedBox(width: AppSpacing.small),
+        AppSvgIcon(icon: icon!, size: 16, color: iconColor),
+        const SizedBox(width: 6),
         Flexible(child: Text(label, textAlign: TextAlign.center)),
       ],
     );

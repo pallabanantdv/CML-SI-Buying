@@ -1,6 +1,6 @@
 abstract final class AppDimensions {
   static const fieldHeight = 48.0;
-  static const buttonHeight = 48.0;
+  static const buttonHeight = 36.0;
   static const fieldRadius = 12.0;
   static const buttonRadius = 12.0;
   static const checkboxRadius = 3.0;

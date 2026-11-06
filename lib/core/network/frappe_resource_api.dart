@@ -1,15 +1,42 @@
 import '../cache/cache_manager.dart';
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import '../../config/constants/api_endpoints.dart';
 import '../errors/app_exception.dart';
 import 'api_client.dart';
+import 'frappe_method_api.dart';
 
 class FrappeResourceApi {
   FrappeResourceApi(this._client);
   final ApiClient _client;
   CacheManager? get cache => _client.cache;
+  FrappeMethodApi get methods => FrappeMethodApi(_client);
+  Uri get serverUri => _client.serverUri;
+  Future<Map<String, String>> printCookies() => _client.printCookies();
+
+  Future<String> getPrintHtml(String doctype, String name, String format) =>
+      _client.getHtml('/printview', {
+        'doctype': doctype,
+        'name': name,
+        'format': format,
+        'no_letterhead': 1,
+      });
+
+  Future<String> uploadImage(Uint8List bytes, String filename) =>
+      _client.uploadImage(bytes, filename);
+
+  Future<Uint8List> getPrintPdf(String doctype, String name, String format) =>
+      _client.getPdf(
+        '/api/method/frappe.utils.print_format.download_pdf',
+        queryParameters: {
+          'doctype': doctype,
+          'name': name,
+          'format': format,
+          'no_letterhead': 1,
+        },
+      );
 
   Future<List<Map<String, dynamic>>> getDocList(
     String doctype, {

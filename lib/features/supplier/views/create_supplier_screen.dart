@@ -1,4 +1,12 @@
+import 'dart:async';
+import 'dart:ui' as ui;
+
+import '../../../core/errors/app_exception.dart';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -25,11 +33,176 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _groupController;
   String _supplierType = 'Company';
+  static const _supplierTypes = [
+    'Company',
+    'Individual',
+    'Partnership',
+    'Walk-in',
+    'Agent',
+    'Trading',
+    'Vesel',
+  ];
+  static const _doctypes = ['Village', 'Island', 'Supplier Group', 'Province'];
+  final _options = <String, List<String>>{};
+  final _optionErrors = <String, String>{};
+  final _loadingOptions = <String>{};
+
+  Future<void> _loadOptions(String doctype) async {
+    if (_loadingOptions.contains(doctype)) return;
+    final repository = context.read<SupplierViewModel>().repository;
+    setState(() {
+      _loadingOptions.add(doctype);
+      _optionErrors.remove(doctype);
+    });
+    try {
+      final options = await repository.getSupplierFieldOptions(doctype);
+      if (!mounted) return;
+      setState(() => _options[doctype] = options);
+    } catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _optionErrors[doctype] = error is AppException
+            ? error.message
+            : 'Unable to load $doctype. Please retry.',
+      );
+    } finally {
+      if (mounted) setState(() => _loadingOptions.remove(doctype));
+    }
+  }
+
+  Widget _linkDropdown(
+    String doctype,
+    TextEditingController controller, {
+    bool required = false,
+  }) {
+    final options = _options[doctype] ?? const <String>[];
+    final loading = _loadingOptions.contains(doctype);
+    final error = _optionErrors[doctype];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<String>(
+          key: ValueKey('$doctype-${options.join('|')}'),
+          initialValue: options.contains(controller.text)
+              ? controller.text
+              : null,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: '$doctype${required ? ' *' : ''}',
+            helperText: loading
+                ? 'Loading...'
+                : error == null && options.isEmpty
+                ? 'No records available'
+                : null,
+          ),
+          items: [
+            for (final option in options)
+              DropdownMenuItem(
+                value: option,
+                child: Text(option, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: loading || options.isEmpty
+              ? null
+              : (value) {
+                  controller.text = value ?? '';
+                  context.read<SupplierViewModel>().clearError();
+                },
+          validator: required ? _required : null,
+        ),
+        if (error != null) ...[
+          Text(
+            error,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => _loadOptions(doctype),
+              child: Text('Retry $doctype'),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Uint8List? _imageBytes;
+  String? _imageFilename;
+  bool _pickingImage = false;
+
+  Future<void> _pickImage({bool fromGallery = true}) async {
+    if (_pickingImage || context.read<SupplierViewModel>().isSaving) return;
+    setState(() => _pickingImage = true);
+    try {
+      final Uint8List bytes;
+      final String filename;
+      if (fromGallery) {
+        final image = await ImagePicker().pickImage(
+          source: ImageSource.gallery,
+          requestFullMetadata: false,
+        );
+        if (!mounted || image == null) return;
+        bytes = await image.readAsBytes();
+        filename = image.name;
+      } else {
+        final file = await FilePicker.pickFile(type: FileType.image);
+        if (!mounted || file == null) return;
+        bytes = await file.readAsBytes();
+        filename = file.name;
+      }
+      if (bytes.isEmpty || bytes.length > 5 * 1024 * 1024) {
+        throw const FormatException('Choose an image smaller than 5 MB.');
+      }
+      final codec = await ui.instantiateImageCodec(bytes, targetWidth: 240);
+      try {
+        final frame = await codec.getNextFrame();
+        frame.image.dispose();
+      } finally {
+        codec.dispose();
+      }
+      if (!mounted) return;
+      setState(() {
+        _imageBytes = bytes;
+        _imageFilename = filename;
+      });
+      context.read<SupplierViewModel>().clearError();
+    } catch (error) {
+      if (mounted) {
+        AppSnackbar.show(
+          context,
+          error is MissingPluginException
+              ? 'The image picker is not loaded. Stop the app completely and rebuild it, then try again.'
+              : error is PlatformException
+              ? 'Unable to open the photo picker: ${error.message ?? error.code}. Try Choose file instead.'
+              : error is FormatException
+              ? error.message
+              : 'Unable to read this image. Try another photo or Choose file.',
+          type: AppMessageType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pickingImage = false);
+    }
+  }
+
   late final TextEditingController _countryController;
   late final TextEditingController _provinceController;
   late final TextEditingController _islandController;
   late final TextEditingController _villageController;
-  late final TextEditingController _contactController;
+  final _addressLine1Controller = TextEditingController();
+  final _addressLine2Controller = TextEditingController();
+  final _cityController = TextEditingController();
+  final _stateController = TextEditingController();
+  final _zipController = TextEditingController();
+
+  bool get _hasAddress => [
+    _addressLine1Controller,
+    _addressLine2Controller,
+    _cityController,
+    _stateController,
+    _zipController,
+  ].any((controller) => controller.text.trim().isNotEmpty);
   late final TextEditingController _mobileController;
   late final TextEditingController _emailController;
 
@@ -37,15 +210,19 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<SupplierViewModel>().clearError();
+      if (mounted) {
+        context.read<SupplierViewModel>().clearError();
+        for (final doctype in _doctypes) {
+          unawaited(_loadOptions(doctype));
+        }
+      }
     });
     _nameController = TextEditingController();
-    _groupController = TextEditingController(text: 'Other');
+    _groupController = TextEditingController();
     _countryController = TextEditingController(text: 'Solomon Islands');
     _provinceController = TextEditingController();
     _islandController = TextEditingController();
     _villageController = TextEditingController();
-    _contactController = TextEditingController();
     _mobileController = TextEditingController();
     _emailController = TextEditingController();
   }
@@ -58,7 +235,11 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
     _provinceController.dispose();
     _islandController.dispose();
     _villageController.dispose();
-    _contactController.dispose();
+    _addressLine1Controller.dispose();
+    _addressLine2Controller.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _zipController.dispose();
     _mobileController.dispose();
     _emailController.dispose();
     super.dispose();
@@ -71,7 +252,7 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
       builder: (context, vm, _) => AppFormActionBar(
         label: 'Save supplier',
         isLoading: vm.isSaving,
-        onPressed: vm.isSaving ? null : _submit,
+        onPressed: vm.isSaving || _pickingImage ? null : _submit,
       ),
     ),
     body: Center(
@@ -85,6 +266,75 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Consumer<SupplierViewModel>(
+                  builder: (context, vm, _) => AppCard(
+                    title: 'Profile picture',
+                    subtitle: 'Optional · JPG, PNG or WebP · Up to 5 MB',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_imageBytes != null) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.memory(
+                              _imageBytes!,
+                              height: 160,
+                              fit: BoxFit.contain,
+                              cacheWidth: 480,
+                              semanticLabel: 'Selected supplier image',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(_imageFilename!, textAlign: TextAlign.center),
+                        ] else
+                          const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Icon(
+                              Icons.add_photo_alternate_outlined,
+                              size: 48,
+                            ),
+                          ),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          children: [
+                            TextButton.icon(
+                              onPressed: vm.isSaving || _pickingImage
+                                  ? null
+                                  : _pickImage,
+                              icon: const Icon(Icons.upload_outlined),
+                              label: Text(
+                                _pickingImage
+                                    ? 'Opening...'
+                                    : _imageBytes == null
+                                    ? 'Choose from gallery'
+                                    : 'Change from gallery',
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: vm.isSaving || _pickingImage
+                                  ? null
+                                  : () => _pickImage(fromGallery: false),
+                              icon: const Icon(Icons.folder_open_outlined),
+                              label: const Text('Choose file'),
+                            ),
+                            if (_imageBytes != null)
+                              TextButton(
+                                onPressed: vm.isSaving || _pickingImage
+                                    ? null
+                                    : () => setState(() {
+                                        _imageBytes = null;
+                                        _imageFilename = null;
+                                      }),
+                                child: const Text('Remove'),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sectionGap),
                 AppCard(
                   tone: AppCardTone.primary,
                   showAccentBar: false,
@@ -104,13 +354,10 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                         textInputAction: TextInputAction.next,
                       ),
                       const SizedBox(height: AppSpacing.sectionGap),
-                      _field(
-                        controller: _groupController,
-                        label: 'Supplier group',
-                        hint: 'For example, Other',
+                      _linkDropdown(
+                        'Supplier Group',
+                        _groupController,
                         required: true,
-                        validator: _required,
-                        textInputAction: TextInputAction.next,
                       ),
                       const SizedBox(height: AppSpacing.sectionGap),
                       DropdownButtonFormField<String>(
@@ -122,15 +369,10 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                           icon: AppIconName.expandMore,
                           size: 18,
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Company',
-                            child: Text('Company'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Individual',
-                            child: Text('Individual'),
-                          ),
+                        isExpanded: true,
+                        items: [
+                          for (final type in _supplierTypes)
+                            DropdownMenuItem(value: type, child: Text(type)),
                         ],
                         onChanged: (value) {
                           if (value != null) {
@@ -153,36 +395,11 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                   ),
                   child: Column(
                     children: [
-                      _field(
-                        controller: _countryController,
-                        label: 'Country',
-                        textInputAction: TextInputAction.next,
-                      ),
+                      _linkDropdown('Province', _provinceController),
                       const SizedBox(height: AppSpacing.sectionGap),
-                      _field(
-                        controller: _provinceController,
-                        label: 'Province',
-                        textInputAction: TextInputAction.next,
-                      ),
+                      _linkDropdown('Island', _islandController),
                       const SizedBox(height: AppSpacing.sectionGap),
-                      _field(
-                        controller: _islandController,
-                        label: 'Island',
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      _field(
-                        controller: _villageController,
-                        label: 'Village',
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      _field(
-                        controller: _contactController,
-                        label: 'Contact number',
-                        keyboardType: TextInputType.phone,
-                        textInputAction: TextInputAction.next,
-                      ),
+                      _linkDropdown('Village', _villageController),
                       const SizedBox(height: AppSpacing.sectionGap),
                       _field(
                         controller: _mobileController,
@@ -196,6 +413,55 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                         label: 'Email address',
                         keyboardType: TextInputType.emailAddress,
                         validator: _emailValidator,
+                        textInputAction: TextInputAction.done,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sectionGap),
+                AppCard(
+                  title: 'Primary Address Details',
+                  child: Column(
+                    children: [
+                      _field(
+                        controller: _addressLine1Controller,
+                        label: 'Address Line 1',
+                        validator: (value) =>
+                            _hasAddress ? _required(value) : null,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _addressLine2Controller,
+                        label: 'Address Line 2',
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _zipController,
+                        label: 'ZIP Code',
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _cityController,
+                        label: 'City',
+                        validator: (value) =>
+                            _hasAddress ? _required(value) : null,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _stateController,
+                        label: 'State',
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      _field(
+                        controller: _countryController,
+                        label: 'Country',
+                        required: true,
+                        validator: _required,
                         textInputAction: TextInputAction.done,
                       ),
                     ],
@@ -284,6 +550,7 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
   }
 
   Future<void> _submit() async {
+    if (_pickingImage || context.read<SupplierViewModel>().isSaving) return;
     FocusScope.of(context).unfocus();
     if (!await validateAndReveal(_formKey) || !mounted) return;
 
@@ -295,7 +562,11 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
       'province': _provinceController.text.trim(),
       'custom_island': _islandController.text.trim(),
       'village': _villageController.text.trim(),
-      'custom_contact_number': _contactController.text.trim(),
+      'address_line1': _addressLine1Controller.text.trim(),
+      'address_line2': _addressLine2Controller.text.trim(),
+      'city': _cityController.text.trim(),
+      'state': _stateController.text.trim(),
+      'pincode': _zipController.text.trim(),
       'mobile_no': _mobileController.text.trim(),
       'email_id': _emailController.text.trim(),
     };
@@ -303,6 +574,8 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
 
     final created = await context.read<SupplierViewModel>().createSupplier(
       fields,
+      imageBytes: _imageBytes,
+      imageFilename: _imageFilename,
     );
     if (!mounted) return;
     if (created) {

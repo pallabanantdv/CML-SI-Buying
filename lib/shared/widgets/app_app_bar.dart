@@ -28,27 +28,36 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       centerTitle: centerTitle,
       automaticallyImplyLeading: false,
+      leadingWidth: canPop ? 30 : 0,
       leading: canPop
           ? IconButton(
+              padding: const EdgeInsets.only(
+                left: 8,
+                right: 0,
+                top: 0,
+                bottom: 0,
+              ),
               tooltip: MaterialLocalizations.of(context).backButtonTooltip,
               onPressed: () => Navigator.of(context).maybePop(),
               icon: const AppSvgIcon(icon: AppIconName.arrowBack),
             )
           : null,
       title: Row(
-        mainAxisSize: MainAxisSize.min,
+        // mainAxisSize: MainAxisSize.min,
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Image.asset(
-              'assets/images/CAML Logo.jpg.jpeg',
+            child: SizedBox(
               width: 32,
               height: 32,
-              fit: BoxFit.contain,
-              semanticLabel: 'CAML logo',
+              child: Image.asset(
+                'assets/images/CAML Logo.jpg.jpeg',
+                fit: BoxFit.cover,
+                semanticLabel: 'CAML logo',
+              ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
           Flexible(child: title),
         ],
       ),

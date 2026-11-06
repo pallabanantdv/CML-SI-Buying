@@ -1,5 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import '../../features/supplier/viewmodels/supplier_viewmodel.dart';
+import '../../features/supplier/viewmodels/supplier_payment_viewmodel.dart';
+import '../../features/supplier/views/create_payment_entry_screen.dart';
+import '../../features/supplier/views/payment_entry_list_screen.dart';
+import '../../features/supplier/viewmodels/payment_entry_list_viewmodel.dart';
 
 import '../constants/app_constants.dart';
 import '../../features/auth/viewmodels/auth_viewmodel.dart';
@@ -20,6 +27,9 @@ import '../../shared/navigation/main_shell.dart';
 import 'route_names.dart';
 import '../../core/navigation/app_page_transitions.dart';
 import '../../core/navigation/app_transition_config.dart';
+import '../../core/models/html_print_document.dart';
+import '../../core/widgets/html_print_preview_screen.dart';
+import '../../shared/widgets/app_error_widget.dart';
 
 GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
   initialLocation: RoutePaths.splash,
@@ -44,6 +54,26 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
     return null;
   },
   routes: [
+    GoRoute(
+      path: '/html-print-preview',
+      name: RouteNames.htmlPrintPreview,
+      builder: (context, state) {
+        final document = state.extra;
+        if (document is! HtmlPrintDocument) {
+          return const AppErrorWidget(
+            message: 'Reopen the print preview from supplier details.',
+          );
+        }
+        return HtmlPrintPreviewScreen(
+          htmlContent: document.html,
+          title: document.title,
+          baseUrl: document.baseUrl,
+          documentId: document.documentId,
+          cookies: document.cookies,
+          loadPdf: document.loadPdf,
+        );
+      },
+    ),
     GoRoute(
       path: RoutePaths.splash,
       name: RouteNames.splash,
@@ -147,6 +177,26 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
                 transition: AppTransition.none,
               ),
               routes: [
+                GoRoute(
+                  path: 'payment-entry',
+                  name: RouteNames.createPaymentEntry,
+                  builder: (context, state) => ChangeNotifierProvider(
+                    create: (_) => SupplierPaymentViewModel(
+                      context.read<SupplierViewModel>().repository.payments,
+                    ),
+                    child: const CreatePaymentEntryScreen(),
+                  ),
+                ),
+                GoRoute(
+                  path: 'payment-entries',
+                  name: RouteNames.paymentEntries,
+                  builder: (context, state) => ChangeNotifierProvider(
+                    create: (_) => PaymentEntryListViewModel(
+                      context.read<SupplierViewModel>().repository.payments,
+                    ),
+                    child: const PaymentEntryListScreen(),
+                  ),
+                ),
                 GoRoute(
                   path: 'create',
                   name: RouteNames.createSupplier,

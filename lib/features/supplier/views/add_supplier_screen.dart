@@ -59,7 +59,15 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
   @override
   Widget build(BuildContext context) => Consumer<SupplierViewModel>(
     builder: (context, viewModel, _) => Scaffold(
-      appBar: AppAppBar(title: AppHeaderTitle(title: viewModel.title)),
+      appBar: AppAppBar(
+        title: AppHeaderTitle(title: viewModel.title),
+        actions: [
+          TextButton(
+            onPressed: () => context.pushNamedOnce(RouteNames.paymentEntries),
+            child: const Text('Payment entries'),
+          ),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: Center(

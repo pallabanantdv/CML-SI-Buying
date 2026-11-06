@@ -1,0 +1,77 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:cml_si_buying/config/theme/app_theme.dart';
+import 'package:cml_si_buying/core/widgets/html_print_preview_screen.dart';
+
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+    'native HTML preview loads a styled table, scrolls, refreshes, and returns',
+    (tester) async {
+      final rows = List.generate(
+        80,
+        (index) => '<tr><td>Supplier $index</td><td>100.00</td></tr>',
+      ).join();
+      final html =
+          '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width">'
+          '<style>table{border-collapse:collapse;width:1200px}td{border:1px solid #333;padding:12px}body{background:white;color:black}</style>'
+          '</head><body><h1>Supplier Card</h1><table>$rows</table></body></html>';
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => HtmlPrintPreviewScreen(
+                        htmlContent: html,
+                        title: 'Supplier Print Preview',
+                      ),
+                    ),
+                  ),
+                  child: const Text('Open preview'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open preview'));
+      await tester.pumpAndSettle();
+      for (
+        var attempt = 0;
+        attempt < 30 && find.byType(WebViewWidget).evaluate().isEmpty;
+        attempt++
+      ) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+      expect(find.byType(WebViewWidget), findsOneWidget);
+      final controller = tester
+          .widget<WebViewWidget>(find.byType(WebViewWidget))
+          .platform
+          .params
+          .controller;
+      await Future<void>.delayed(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Unable to'), findsNothing);
+      await controller.scrollTo(150, 500);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final position = await controller.getScrollPosition();
+      expect(position.dy, greaterThan(0));
+      expect(position.dx, greaterThan(0));
+      await tester.tap(find.byTooltip('Refresh preview'));
+      await tester.pumpAndSettle();
+      await Future<void>.delayed(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(find.byType(WebViewWidget), findsOneWidget);
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Open preview'), findsOneWidget);
+    },
+  );
+}

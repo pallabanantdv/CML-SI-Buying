@@ -104,21 +104,28 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: _buttonStyle(
-          textStyle: textTheme.labelLarge!,
+          textStyle: textTheme.labelLarge!.copyWith(fontSize: 12),
+          background: scheme.primary,
+          foreground: scheme.onPrimary,
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: _buttonStyle(
+          textStyle: textTheme.labelLarge!.copyWith(fontSize: 12),
           background: scheme.primary,
           foreground: scheme.onPrimary,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: _buttonStyle(
-          textStyle: textTheme.labelLarge!,
+          textStyle: textTheme.labelLarge!.copyWith(fontSize: 12),
           foreground: scheme.primary,
           side: BorderSide(color: borderColor),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: _buttonStyle(
-          textStyle: textTheme.labelLarge!,
+          textStyle: textTheme.labelLarge!.copyWith(fontSize: 12),
           foreground: scheme.primary,
         ),
       ),
@@ -245,9 +252,10 @@ abstract final class AppTheme {
       Size(0, AppDimensions.buttonHeight),
     ),
     padding: const WidgetStatePropertyAll(
-      EdgeInsets.symmetric(horizontal: AppSpacing.standard),
+      EdgeInsets.symmetric(horizontal: AppSpacing.medium, vertical: 6),
     ),
     textStyle: WidgetStatePropertyAll(textStyle),
+    iconSize: const WidgetStatePropertyAll(16),
     shape: WidgetStatePropertyAll(
       RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),

@@ -342,7 +342,7 @@ void main() {
               }
               await tester.runAsync(() async {
                 await precacheImage(
-                  const AssetImage('assets/images/CAML Logo.jpg.jpeg'),
+                  const AssetImage('assets/images/CAML Logo.png'),
                   tester.element(find.byType(Scaffold).first),
                 );
               });

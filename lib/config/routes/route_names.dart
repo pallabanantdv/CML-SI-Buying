@@ -7,7 +7,10 @@ abstract final class RouteNames {
   static const createPointOfPurchase = 'create-point-of-purchase';
   static const addSupplier = 'add-supplier';
   static const createSupplier = 'create-supplier';
+  static const createPaymentEntry = 'create-payment-entry';
+  static const paymentEntries = 'payment-entries';
   static const supplierDetails = 'supplier-details';
+  static const htmlPrintPreview = 'html-print-preview';
   static const profile = 'profile';
   static const settings = 'settings';
   static const designSystem = 'design-system';

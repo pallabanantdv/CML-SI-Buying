@@ -1,7 +1,10 @@
+import 'dart:typed_data';
+
 import '../../../core/cache/cache_manager.dart';
 import '../../../core/diagnostics/app_diagnostics.dart';
 import '../../../core/diagnostics/diagnostic_notifier.dart';
 import '../../../core/errors/app_exception.dart';
+import '../../../core/models/html_print_document.dart';
 import '../models/supplier_model.dart';
 import '../repositories/supplier_repository.dart';
 
@@ -63,6 +66,51 @@ class SupplierViewModel extends DiagnosticNotifier {
   String? get selectedSupplierId => _selectedSupplierId;
   String? get detailErrorMessage => _detailErrorMessage;
   bool get isLoadingDetail => _isLoadingDetail;
+  bool _isLoadingPrint = false;
+  String? _printError;
+  bool get isLoadingPrint => _isLoadingPrint;
+  String? get printError => _printError;
+
+  Future<HtmlPrintDocument?> loadPrintPreview(String supplierId) async {
+    if (isDisposed || _isLoadingPrint) return null;
+    final session = _sessionId;
+    _isLoadingPrint = true;
+    _printError = null;
+    notifyListeners();
+    try {
+      final html = await repository.getSupplierCardHtml(supplierId);
+      final cookies = await repository.printCookies();
+      if (isDisposed || session != _sessionId) return null;
+      return HtmlPrintDocument(
+        html: HtmlPrintDocument.extractHtml(html),
+        title: 'Supplier Print Preview',
+        documentId: supplierId,
+        baseUrl: repository.printServerUri.resolve('/printview'),
+        cookies: Map.unmodifiable(cookies),
+        loadPdf: () async {
+          if (isDisposed || session != _sessionId) {
+            throw const AppException(
+              'The account changed. Please reopen the preview.',
+            );
+          }
+          return repository.getSupplierCard(supplierId);
+        },
+      );
+    } on AppException catch (error) {
+      if (!isDisposed && session == _sessionId) _printError = error.message;
+    } catch (_) {
+      if (!isDisposed && session == _sessionId) {
+        _printError =
+            'Unable to load the supplier print preview. Please retry.';
+      }
+    } finally {
+      if (!isDisposed && session == _sessionId) {
+        _isLoadingPrint = false;
+        notifyListeners();
+      }
+    }
+    return null;
+  }
 
   Future<void> loadSupplier(String documentName, {bool force = true}) async {
     if (isDisposed ||
@@ -70,7 +118,10 @@ class SupplierViewModel extends DiagnosticNotifier {
       return;
     }
     final request = ++_detailRequestId;
-    if (_selectedSupplierId != documentName) _selectedSupplier = null;
+    if (_selectedSupplierId != documentName) {
+      _selectedSupplier = null;
+      _printError = null;
+    }
     _selectedSupplierId = documentName;
     _isLoadingDetail = true;
     _detailErrorMessage = null;
@@ -102,6 +153,8 @@ class SupplierViewModel extends DiagnosticNotifier {
   void resetSession() {
     ++_sessionId;
     ++_detailRequestId;
+    _isLoadingPrint = false;
+    _printError = null;
     _selectedSupplier = null;
     _selectedSupplierId = null;
     _detailErrorMessage = null;
@@ -162,14 +215,26 @@ class SupplierViewModel extends DiagnosticNotifier {
     }
   }
 
-  Future<bool> createSupplier(Map<String, dynamic> fields) async {
+  Future<bool> createSupplier(
+    Map<String, dynamic> fields, {
+    Uint8List? imageBytes,
+    String? imageFilename,
+  }) async {
     if (_isSaving) return false;
     final sessionId = _sessionId;
     _isSaving = true;
     _errorMessage = null;
     notifyListeners();
     try {
-      final created = await repository.createSupplier(fields);
+      final payload = Map<String, dynamic>.from(fields);
+      if (imageBytes != null && imageFilename != null) {
+        payload['image'] = await repository.uploadSupplierImage(
+          imageBytes,
+          imageFilename,
+        );
+        if (isDisposed || sessionId != _sessionId) return false;
+      }
+      final created = await repository.createSupplier(payload);
       if (sessionId != _sessionId || isDisposed) return false;
       _suppliers = [
         created,

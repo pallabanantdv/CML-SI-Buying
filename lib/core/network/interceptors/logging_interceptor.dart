@@ -1,11 +1,11 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
 import '../../diagnostics/app_diagnostics.dart';
 
-/// Fail-closed logging: unknown scalar values are private business data.
-/// Preserve payload structure and counts, never credentials or record values.
+/// Log business values while masking authentication secrets.
 class SafeLoggingInterceptor extends Interceptor {
   SafeLoggingInterceptor({void Function(String)? sink})
     : _sink = sink ?? AppDiagnostics.write;
@@ -13,18 +13,36 @@ class SafeLoggingInterceptor extends Interceptor {
   static int _sequence = 0;
   static const _id = 'caml.log.id';
   static const _clock = 'caml.log.clock';
+  static bool _isSecret(String key) => RegExp(
+    r'password|passwd|secret|token|cookie|authorization|api[_-]?key|session[_-]?id|^sid$|^pwd$',
+    caseSensitive: false,
+  ).hasMatch(key);
 
   static Object? sanitize(Object? value) {
     if (value == null) return null;
+    if (value is Uint8List) {
+      try {
+        return sanitize(jsonDecode(utf8.decode(value)));
+      } catch (_) {
+        return {'binaryBytes': value.length};
+      }
+    }
     if (value is Map) {
       return {
         for (final entry in value.entries)
-          entry.key.toString(): sanitize(entry.value),
+          entry.key.toString(): _isSecret(entry.key.toString())
+              ? '[REDACTED]'
+              : sanitize(entry.value),
       };
     }
     if (value is FormData) {
       return {
-        'fields': {for (final entry in value.fields) entry.key: '[REDACTED]'},
+        'fields': {
+          for (final entry in value.fields)
+            entry.key: _isSecret(entry.key)
+                ? '[REDACTED]'
+                : sanitize(entry.value),
+        },
         'files': '[REDACTED]',
       };
     }
@@ -34,31 +52,27 @@ class SafeLoggingInterceptor extends Interceptor {
         final decoded = jsonDecode(value);
         if (decoded is Map || decoded is List) return sanitize(decoded);
       } catch (_) {
-        /* Opaque text is private. */
+        /* Ordinary text is logged as received. */
       }
     }
-    return '[REDACTED]';
+    return value;
   }
 
   static String safeUrl(Uri uri) {
-    final segments = uri.pathSegments;
-    // Resource names and arbitrary method parameters can contain business data.
-    final path = segments
-        .asMap()
-        .entries
-        .map(
-          (entry) =>
-              entry.key >= 3 ? '[REDACTED]' : Uri.encodeComponent(entry.value),
-        )
-        .join('/');
     final query = {
-      for (final key in uri.queryParameters.keys) key: '[REDACTED]',
+      for (final entry in uri.queryParametersAll.entries)
+        entry.key: _isSecret(entry.key)
+            ? ['[REDACTED]']
+            : entry.value.map((value) {
+                final sanitized = sanitize(value);
+                return sanitized is String ? sanitized : jsonEncode(sanitized);
+              }).toList(),
     };
     return Uri(
       scheme: uri.scheme,
       host: uri.host,
       port: uri.hasPort ? uri.port : null,
-      path: '/$path',
+      path: uri.path,
       queryParameters: query.isEmpty ? null : query,
     ).toString();
   }

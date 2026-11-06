@@ -8,7 +8,7 @@ class ErrorInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     final status = err.response?.statusCode;
-    final body = err.response?.data;
+    final body = _decodeErrorBody(err.response?.data);
     final message = _frappeMessage(body) ?? _statusMessage(status, err.type);
     handler.reject(
       err.copyWith(
@@ -20,6 +20,18 @@ class ErrorInterceptor extends Interceptor {
         ),
       ),
     );
+  }
+
+  // PDF endpoints still return JSON when rendering or validation fails. Dio
+  // keeps that JSON as bytes because the original request expects a PDF.
+  static dynamic _decodeErrorBody(dynamic body) {
+    try {
+      if (body is List<int>) return jsonDecode(utf8.decode(body));
+      if (body is String) return jsonDecode(body);
+    } catch (_) {
+      // Non-JSON error pages retain the normal HTTP status fallback.
+    }
+    return body;
   }
 
   static String? _frappeMessage(dynamic body) {
@@ -41,6 +53,14 @@ class ErrorInterceptor extends Interceptor {
           }
         }
       } catch (_) {}
+    }
+    // Some Frappe rendering errors omit _server_messages but include the
+    // exception class and message. Do not expose the full server traceback.
+    final exception = body['exception'];
+    if (exception is String &&
+        exception.trim().isNotEmpty &&
+        !exception.contains('\n')) {
+      return exception.trim();
     }
     return null;
   }
