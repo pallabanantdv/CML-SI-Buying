@@ -4,6 +4,7 @@ import '../../../core/cache/cache_manager.dart';
 import '../../../core/diagnostics/app_diagnostics.dart';
 import '../../../core/diagnostics/diagnostic_notifier.dart';
 import '../../../core/errors/app_exception.dart';
+import '../../../core/models/html_print_document.dart';
 import '../models/point_of_purchase_model.dart';
 import '../models/supplier_advance.dart';
 
@@ -15,6 +16,43 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
   }
 
   final PointOfPurchaseRepository repository;
+  Future<HtmlPrintDocument> loadInvoicePreview(String purchaseName) async {
+    final session = _sessionId;
+    final record = selectedRecord;
+    if (selectedName != purchaseName ||
+        int.tryParse('${record?['docstatus']}') != 1) {
+      throw const AppException('Only submitted purchases can show an invoice.');
+    }
+    final invoice = record?['purchase_invoice']?.toString().trim() ?? '';
+    if (invoice.isEmpty) {
+      throw const AppException(
+        'No purchase invoice is linked to this purchase yet.',
+      );
+    }
+    final html = await repository.getInvoicePrintHtml(invoice);
+    final cookies = await repository.printCookies();
+    if (isDisposed || session != _sessionId) {
+      throw const AppException(
+        'The account changed. Please reopen the invoice.',
+      );
+    }
+    return HtmlPrintDocument(
+      html: HtmlPrintDocument.extractHtml(html),
+      title: 'Purchase invoice',
+      documentId: invoice,
+      baseUrl: repository.printServerUri.resolve('/printview'),
+      cookies: Map.unmodifiable(cookies),
+      loadPdf: () {
+        if (isDisposed || session != _sessionId) {
+          throw const AppException(
+            'The account changed. Please reopen the invoice.',
+          );
+        }
+        return repository.getInvoicePrintPdf(invoice);
+      },
+    );
+  }
+
   void _cacheChanged() => notifyListeners();
   bool get hasSavedData =>
       repository.cache?.hasSavedData(
@@ -35,6 +73,7 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
   int _sessionId = 0;
 
   void resetSession() {
+    _supplierFilter = null;
     ++_sessionId;
     _resetSupplierAdvances();
     _isSubmitting = false;
@@ -272,6 +311,7 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
         ),
         repository.getLinkOptions('Mode of Payment'),
         repository.getLinkOptions('UOM'),
+        repository.getCollectionLocationOptions(),
       ]);
       if (sessionId != _sessionId || isDisposed) return;
       _hasCreateOptions = true;
@@ -285,6 +325,7 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
         'Account': options[6],
         'Mode of Payment': options[7],
         'UOM': options[8],
+        'Collection Location': options[9],
       };
     } on AppException catch (error) {
       if (sessionId != _sessionId || isDisposed) return;
@@ -387,17 +428,28 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
     notifyListeners();
   }
 
-  Future<void> loadPointOfPurchases({bool force = true}) async {
-    if (isDisposed || _isLoading) return;
+  String? _supplierFilter;
+  Future<void> filterBySupplier(String? supplier) async {
+    _supplierFilter = supplier;
+    await loadPointOfPurchases(replaceRequest: true);
+  }
+
+  Future<void> loadPointOfPurchases({
+    bool force = true,
+    bool replaceRequest = false,
+  }) async {
+    if (isDisposed || (_isLoading && !replaceRequest)) return;
     final listRequest = ++_listRequestId;
     AppDiagnostics.write('[$runtimeType] list load started');
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
-      final result = await (force
-          ? CacheManager.force(() => repository.getPointOfPurchases())
-          : repository.getPointOfPurchases());
+      final supplier = _supplierFilter;
+      Future<List<PointOfPurchaseModel>> fetch() => supplier == null
+          ? repository.getPointOfPurchases()
+          : repository.getPurchasesForSupplier(supplier);
+      final result = await (force ? CacheManager.force(fetch) : fetch());
       if (isDisposed || listRequest != _listRequestId) return;
       _records = result;
       _hasLoaded = true;

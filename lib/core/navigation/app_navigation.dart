@@ -2,7 +2,9 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 /// A guard lasts until the pushed page returns, including its entrance animation.
-/// Separate routers have separate guards and can be garbage collected normally.
+/// Scope guards to the originating page: authentication redirects can discard
+/// pushed pages without completing their push futures. A new page must not
+/// inherit those stale guards. Contexts outside a route fall back to the router.
 final _pendingPushes = Expando<Set<String>>('pending navigation');
 
 extension AppNavigation on BuildContext {
@@ -18,7 +20,8 @@ extension AppNavigation on BuildContext {
       pathParameters: pathParameters,
       queryParameters: queryParameters,
     );
-    final pending = _pendingPushes[router] ??= <String>{};
+    final owner = ModalRoute.of(this) ?? router;
+    final pending = _pendingPushes[owner] ??= <String>{};
     if (router.routeInformationProvider.value.uri.toString() == location ||
         !pending.add(location)) {
       return null;

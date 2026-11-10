@@ -23,7 +23,8 @@ import '../../../shared/widgets/app_text_field.dart';
 import '../viewmodels/supplier_viewmodel.dart';
 
 class CreateSupplierScreen extends StatefulWidget {
-  const CreateSupplierScreen({super.key});
+  const CreateSupplierScreen({super.key, this.supplier});
+  final Map<String, dynamic>? supplier;
 
   @override
   State<CreateSupplierScreen> createState() => _CreateSupplierScreenState();
@@ -77,7 +78,10 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
     TextEditingController controller, {
     bool required = false,
   }) {
-    final options = _options[doctype] ?? const <String>[];
+    final options = {
+      ...?_options[doctype],
+      if (controller.text.isNotEmpty) controller.text,
+    }.toList();
     final loading = _loadingOptions.contains(doctype);
     final error = _optionErrors[doctype];
     return Column(
@@ -132,6 +136,7 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
   Uint8List? _imageBytes;
   String? _imageFilename;
   bool _pickingImage = false;
+  String? _existingImage;
 
   Future<void> _pickImage({bool fromGallery = true}) async {
     if (_pickingImage || context.read<SupplierViewModel>().isSaving) return;
@@ -227,6 +232,24 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
     _villageController = TextEditingController();
     _mobileController = TextEditingController();
     _emailController = TextEditingController();
+    final record = widget.supplier;
+    if (record != null) {
+      final controllers = <String, TextEditingController>{
+        'supplier_name': _nameController,
+        'supplier_group': _groupController,
+        'country': _countryController,
+        'province': _provinceController,
+        'custom_island': _islandController,
+        'village': _villageController,
+        'mobile_no': _mobileController,
+        'email_id': _emailController,
+      };
+      for (final entry in controllers.entries) {
+        entry.value.text = '${record[entry.key] ?? ''}';
+      }
+      _supplierType = '${record['supplier_type'] ?? 'Company'}';
+      _existingImage = record['image']?.toString();
+    }
   }
 
   @override
@@ -250,7 +273,11 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: const AppAppBar(title: AppHeaderTitle(title: 'Add supplier')),
+    appBar: AppAppBar(
+      title: AppHeaderTitle(
+        title: widget.supplier == null ? 'Add supplier' : 'Edit supplier',
+      ),
+    ),
     bottomNavigationBar: Consumer<SupplierViewModel>(
       builder: (context, vm, _) => AppFormActionBar(
         label: 'Save supplier',
@@ -289,7 +316,18 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(_imageFilename!, textAlign: TextAlign.center),
-                        ] else
+                        ] else if (_existingImage?.isNotEmpty == true)
+                          Image.network(
+                            vm.repository.printServerUri
+                                .resolve(_existingImage!)
+                                .toString(),
+                            height: 160,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const Text(
+                              'Current supplier image unavailable. Choose a replacement below.',
+                            ),
+                          )
+                        else
                           const Padding(
                             padding: EdgeInsets.all(20),
                             child: Icon(
@@ -321,13 +359,15 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                               icon: const Icon(Icons.folder_open_outlined),
                               label: const Text('Choose file'),
                             ),
-                            if (_imageBytes != null)
+                            if (_imageBytes != null ||
+                                _existingImage?.isNotEmpty == true)
                               TextButton(
                                 onPressed: vm.isSaving || _pickingImage
                                     ? null
                                     : () => setState(() {
                                         _imageBytes = null;
                                         _imageFilename = null;
+                                        _existingImage = '';
                                       }),
                                 child: const Text('Remove'),
                               ),
@@ -368,7 +408,7 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                         label: 'Supplier type',
                         hint: 'Select supplier type',
                         items: [
-                          for (final type in _supplierTypes)
+                          for (final type in {..._supplierTypes, _supplierType})
                             DropdownMenuItem(value: type, child: Text(type)),
                         ],
                         onChanged: (value) {
@@ -416,74 +456,75 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sectionGap),
-                AppCard(
-                  padding: EdgeInsets.zero,
-                  child: ExpansionTile(
-                    controller: _addressExpansionController,
-                    initiallyExpanded: false,
-                    maintainState: true,
-                    shape: const Border(),
-                    collapsedShape: const Border(),
-                    title: Text(
-                      'Primary Address Details',
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    childrenPadding: const EdgeInsets.fromLTRB(
-                      AppSpacing.cardPadding,
-                      0,
-                      AppSpacing.cardPadding,
-                      AppSpacing.cardPadding,
-                    ),
-                    children: [
-                      Column(
-                        children: [
-                          _field(
-                            controller: _addressLine1Controller,
-                            label: 'Address Line 1',
-                            validator: (value) =>
-                                _hasAddress ? _required(value) : null,
-                            textInputAction: TextInputAction.next,
-                          ),
-                          const SizedBox(height: AppSpacing.sectionGap),
-                          _field(
-                            controller: _addressLine2Controller,
-                            label: 'Address Line 2',
-                            textInputAction: TextInputAction.next,
-                          ),
-                          const SizedBox(height: AppSpacing.sectionGap),
-                          _field(
-                            controller: _zipController,
-                            label: 'ZIP Code',
-                            textInputAction: TextInputAction.next,
-                          ),
-                          const SizedBox(height: AppSpacing.sectionGap),
-                          _field(
-                            controller: _cityController,
-                            label: 'City',
-                            validator: (value) =>
-                                _hasAddress ? _required(value) : null,
-                            textInputAction: TextInputAction.next,
-                          ),
-                          const SizedBox(height: AppSpacing.sectionGap),
-                          _field(
-                            controller: _stateController,
-                            label: 'State',
-                            textInputAction: TextInputAction.next,
-                          ),
-                          const SizedBox(height: AppSpacing.sectionGap),
-                          _field(
-                            controller: _countryController,
-                            label: 'Country',
-                            required: true,
-                            validator: _required,
-                            textInputAction: TextInputAction.done,
-                          ),
-                        ],
+                if (widget.supplier == null)
+                  AppCard(
+                    padding: EdgeInsets.zero,
+                    child: ExpansionTile(
+                      controller: _addressExpansionController,
+                      initiallyExpanded: false,
+                      maintainState: true,
+                      shape: const Border(),
+                      collapsedShape: const Border(),
+                      title: Text(
+                        'Primary Address Details',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
-                    ],
+                      childrenPadding: const EdgeInsets.fromLTRB(
+                        AppSpacing.cardPadding,
+                        0,
+                        AppSpacing.cardPadding,
+                        AppSpacing.cardPadding,
+                      ),
+                      children: [
+                        Column(
+                          children: [
+                            _field(
+                              controller: _addressLine1Controller,
+                              label: 'Address Line 1',
+                              validator: (value) =>
+                                  _hasAddress ? _required(value) : null,
+                              textInputAction: TextInputAction.next,
+                            ),
+                            const SizedBox(height: AppSpacing.sectionGap),
+                            _field(
+                              controller: _addressLine2Controller,
+                              label: 'Address Line 2',
+                              textInputAction: TextInputAction.next,
+                            ),
+                            const SizedBox(height: AppSpacing.sectionGap),
+                            _field(
+                              controller: _zipController,
+                              label: 'ZIP Code',
+                              textInputAction: TextInputAction.next,
+                            ),
+                            const SizedBox(height: AppSpacing.sectionGap),
+                            _field(
+                              controller: _cityController,
+                              label: 'City',
+                              validator: (value) =>
+                                  _hasAddress ? _required(value) : null,
+                              textInputAction: TextInputAction.next,
+                            ),
+                            const SizedBox(height: AppSpacing.sectionGap),
+                            _field(
+                              controller: _stateController,
+                              label: 'State',
+                              textInputAction: TextInputAction.next,
+                            ),
+                            const SizedBox(height: AppSpacing.sectionGap),
+                            _field(
+                              controller: _countryController,
+                              label: 'Country',
+                              required: true,
+                              validator: _required,
+                              textInputAction: TextInputAction.done,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 const SizedBox(height: AppSpacing.sectionGap),
                 Consumer<SupplierViewModel>(
                   builder: (context, viewModel, _) => Column(
@@ -596,12 +637,32 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
       'mobile_no': _mobileController.text.trim(),
       'email_id': _emailController.text.trim(),
     };
-    fields.removeWhere((_, value) => value is String && value.isEmpty);
+    if (widget.supplier == null) {
+      fields.removeWhere((_, value) => value is String && value.isEmpty);
+    } else {
+      // Address documents are separate from the Supplier record.
+      for (final key in [
+        'address_line1',
+        'address_line2',
+        'city',
+        'state',
+        'pincode',
+      ]) {
+        fields.remove(key);
+      }
+      fields.removeWhere(
+        (key, value) => value == (widget.supplier![key] ?? ''),
+      );
+      if (_existingImage == '' && widget.supplier!['image'] != null) {
+        fields['image'] = '';
+      }
+    }
 
     final created = await context.read<SupplierViewModel>().createSupplier(
       fields,
       imageBytes: _imageBytes,
       imageFilename: _imageFilename,
+      supplierId: widget.supplier?['name']?.toString(),
     );
     if (!mounted) return;
     if (created) {

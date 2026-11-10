@@ -77,12 +77,23 @@ class ApiClient {
   Future<dynamic> get(
     String path, {
     Map<String, dynamic>? queryParameters,
+    bool optionalPermission = false,
   }) async => cache == null
-      ? _request('GET', path, queryParameters: queryParameters)
+      ? _request(
+          'GET',
+          path,
+          queryParameters: queryParameters,
+          optionalPermission: optionalPermission,
+        )
       : cache!.read(
           path,
           queryParameters,
-          () => _request('GET', path, queryParameters: queryParameters),
+          () => _request(
+            'GET',
+            path,
+            queryParameters: queryParameters,
+            optionalPermission: optionalPermission,
+          ),
         );
   Future<dynamic> post(
     String path, {
@@ -107,6 +118,7 @@ class ApiClient {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     ResponseType? responseType,
+    bool optionalPermission = false,
   }) async {
     if (dio.options.baseUrl.isEmpty) {
       throw const AppException(
@@ -140,7 +152,7 @@ class ApiClient {
       final body = response.data;
       if (body is Map &&
           (body['exception'] != null || body['exc_type'] != null)) {
-        connectivity?.reportRefreshFailure();
+        if (method == 'GET') connectivity?.reportRefreshFailure();
         throw const AppException('The server could not complete this request.');
       }
       if (method != 'GET' &&
@@ -152,7 +164,11 @@ class ApiClient {
     } on AppException {
       rethrow;
     } on DioException catch (error) {
-      connectivity?.failure(error);
+      // Optional metadata may be forbidden without invalidating the main read.
+      // Keep transport and server failures visible even for optional requests.
+      if (!optionalPermission || error.response?.statusCode != 403) {
+        connectivity?.failure(error, isRefresh: method == 'GET');
+      }
       if (error.error is AppException) throw error.error as AppException;
       throw const AppException(
         'Unable to reach the server. Check your connection.',

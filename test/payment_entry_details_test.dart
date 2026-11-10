@@ -57,6 +57,36 @@ Future<void> mount(WidgetTester tester, PaymentApi api) async {
 }
 
 void main() {
+  testWidgets(
+    'payment values remain selectable after repeated section toggles',
+    (tester) async {
+      final api = PaymentApi();
+      await mount(tester, api);
+      api.response.complete(document());
+      await tester.pumpAndSettle();
+
+      for (var i = 0; i < 40; i++) {
+        await tester.tap(find.text('Payment information'));
+        // Also reverse the animation before it finishes on alternating taps.
+        await tester.pump(Duration(milliseconds: i.isEven ? 40 : 300));
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('Island supplier'), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.text('Island supplier'),
+          matching: find.byType(SelectionArea),
+        ),
+        findsOneWidget,
+      );
+      await tester.longPress(find.text('Island supplier'));
+      await tester.pumpAndSettle();
+      expect(find.text('Copy'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('loads full payment including references and deductions', (
     tester,
   ) async {

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/utils/number_format.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/app_dropdown.dart';
+import '../models/purchase_invoice_summary.dart';
 
 enum _ChartPeriod { week, month, year }
 
-/// Local sample series only; selecting a period never requests server data.
 class DashboardPurchaseChart extends StatefulWidget {
-  const DashboardPurchaseChart({super.key});
+  const DashboardPurchaseChart({super.key, this.summary});
+  final PurchaseInvoiceSummary? summary;
 
   @override
   State<DashboardPurchaseChart> createState() => _DashboardPurchaseChartState();
@@ -16,36 +17,23 @@ class DashboardPurchaseChart extends StatefulWidget {
 class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
   _ChartPeriod _period = _ChartPeriod.month;
 
+  String? _selectedWeek;
+
+  PurchaseTrend? get _week {
+    final weeks = widget.summary?.weekly ?? [];
+    return weeks.where((week) => week.id == _selectedWeek).firstOrNull ??
+        weeks.lastOrNull;
+  }
+
   List<(String, double)> get _series => switch (_period) {
-    _ChartPeriod.week => const [
-      ('Mon', 3200),
-      ('Tue', 4500),
-      ('Wed', 2800),
-      ('Thu', 5100),
-      ('Fri', 3900),
-      ('Sat', 2400),
-      ('Sun', 1600),
+    _ChartPeriod.week => _week?.dailyCounts ?? [],
+    _ChartPeriod.month => [
+      for (final row in widget.summary?.monthly ?? <PurchaseTrend>[])
+        (row.label, row.count),
     ],
-    _ChartPeriod.month => const [
-      ('Jan', 18000),
-      ('Feb', 22000),
-      ('Mar', 19500),
-      ('Apr', 26000),
-      ('May', 24000),
-      ('Jun', 28500),
-      ('Jul', 31000),
-      ('Aug', 27500),
-      ('Sep', 33000),
-      ('Oct', 35000),
-      ('Nov', 29000),
-      ('Dec', 38000),
-    ],
-    _ChartPeriod.year => const [
-      ('2022', 180000),
-      ('2023', 225000),
-      ('2024', 265000),
-      ('2025', 310000),
-      ('2026', 351500),
+    _ChartPeriod.year => [
+      for (final row in widget.summary?.yearly ?? <PurchaseTrend>[])
+        (row.label, row.count),
     ],
   };
 
@@ -60,7 +48,7 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
     final theme = Theme.of(context);
     return AppCard(
       title: 'Purchase trends',
-      subtitle: 'Static sample data · Purchase value (\$)',
+      subtitle: 'Purchase invoice counts',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -81,21 +69,29 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
           ),
           const SizedBox(height: 12),
           Text(
-            '\$${AppNumberFormat.amount(total)}',
+            '${total.toInt()} transactions',
             style: theme.textTheme.titleLarge,
           ),
-          Text(switch (_period) {
-            _ChartPeriod.week => 'Sample week · Monday–Sunday',
-            _ChartPeriod.month => 'Sample year · January–December',
-            _ChartPeriod.year => 'Sample years · 2022–2026',
-          }, style: theme.textTheme.bodySmall),
+          if (_period == _ChartPeriod.week && _week != null) ...[
+            const SizedBox(height: 12),
+            AppDropdown<String>(
+              value: _week!.id,
+              label: 'Week',
+              items: [
+                for (final week in widget.summary!.weekly)
+                  DropdownMenuItem(value: week.id, child: Text(week.label)),
+              ],
+              onChanged: (value) => setState(() => _selectedWeek = value),
+            ),
+          ],
+          if (series.isEmpty)
+            const Text('No purchase trend data for this period.'),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final width = (constraints.maxWidth / series.length).clamp(
-                48.0,
-                88.0,
-              );
+              final width =
+                  (constraints.maxWidth / (series.isEmpty ? 1 : series.length))
+                      .clamp(48.0, 88.0);
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -105,11 +101,10 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
                       SizedBox(
                         width: width,
                         child: Semantics(
-                          label:
-                              '${row.$1}: ${AppNumberFormat.amount(row.$2)} dollars',
+                          label: '${row.$1}: ${row.$2.toInt()} transactions',
                           child: Tooltip(
                             message:
-                                '${row.$1}: \$${AppNumberFormat.amount(row.$2)}',
+                                '${row.$1}: ${row.$2.toInt()} transactions',
                             child: Column(
                               children: [
                                 SizedBox(
@@ -121,7 +116,9 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
                                         milliseconds: 250,
                                       ),
                                       width: 24,
-                                      height: 160 * row.$2 / maximum,
+                                      height: maximum <= 0
+                                          ? 0
+                                          : 160 * row.$2 / maximum,
                                       decoration: BoxDecoration(
                                         color: theme.colorScheme.primary,
                                         borderRadius:

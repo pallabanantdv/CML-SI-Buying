@@ -64,6 +64,17 @@ class CardAdapter implements HttpClientAdapter {
 }
 
 class ImageSupplierRepository extends Suppliers {
+  String? updatedId;
+  @override
+  Future<SupplierModel> updateSupplier(
+    String id,
+    Map<String, dynamic> fields,
+  ) async {
+    updatedId = id;
+    saved = fields;
+    return SupplierModel(id: id, name: fields['supplier_name'] as String);
+  }
+
   bool failUpload = false;
   int uploads = 0;
   Map<String, dynamic>? saved;
@@ -91,6 +102,7 @@ class CaptureSupplierViewModel extends SupplierViewModel {
     Map<String, dynamic> fields, {
     Uint8List? imageBytes,
     String? imageFilename,
+    String? supplierId,
   }) async {
     payload = fields;
     return false;
@@ -98,6 +110,26 @@ class CaptureSupplierViewModel extends SupplierViewModel {
 }
 
 void main() {
+  test(
+    'editing uploads replacement image and updates the existing supplier',
+    () async {
+      final repository = ImageSupplierRepository();
+      final vm = SupplierViewModel(repository);
+      addTearDown(vm.dispose);
+      expect(
+        await vm.createSupplier(
+          {'supplier_name': 'Updated supplier'},
+          supplierId: 'SUP-1',
+          imageBytes: Uint8List.fromList([1, 2, 3]),
+          imageFilename: 'supplier.png',
+        ),
+        isTrue,
+      );
+      expect(repository.updatedId, 'SUP-1');
+      expect(repository.saved!['image'], '/files/supplier.png');
+      expect(vm.suppliers.single.name, 'Updated supplier');
+    },
+  );
   testWidgets('primary address is validated and sent without contact number', (
     tester,
   ) async {

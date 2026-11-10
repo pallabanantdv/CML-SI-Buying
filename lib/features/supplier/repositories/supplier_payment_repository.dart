@@ -37,7 +37,7 @@ class SupplierPaymentRepository {
         ],
         filters: [
           ['party_type', '=', 'Supplier'],
-          ['payment_type', '=', 'Pay'],
+          // ['payment_type', '=', 'Pay'],
           if (status != null) ['docstatus', '=', status],
         ],
         orderBy: 'modified desc, name desc',
@@ -62,7 +62,7 @@ class SupplierPaymentRepository {
     if (current is! Map ||
         current['name'] != name ||
         current['party_type'] != 'Supplier' ||
-        current['payment_type'] != 'Pay' ||
+        // current['payment_type'] != 'Pay' ||
         int.tryParse('${current['docstatus']}') != 0) {
       throw const AppException(
         'Only draft supplier payments can be submitted. Refresh the list to check its status.',
@@ -99,14 +99,21 @@ class SupplierPaymentRepository {
     fields: ['name', 'default_currency'],
     limitPageLength: 100,
   );
-  Future<List<Map<String, dynamic>>> suppliers() => api.getDocList(
-    'Supplier',
-    fields: ['name', 'supplier_name'],
-    filters: [
-      ['disabled', '=', 0],
-    ],
-    limitPageLength: 1000,
-  );
+  Future<List<Map<String, dynamic>>> suppliers({String query = ''}) =>
+      api.getDocList(
+        'Supplier',
+        fields: ['name', 'supplier_name'],
+        filters: [
+          ['disabled', '=', 0],
+        ],
+        orFilters: query.trim().isEmpty
+            ? null
+            : [
+                ['name', 'like', '%${query.trim()}%'],
+                ['supplier_name', 'like', '%${query.trim()}%'],
+              ],
+        limitPageLength: 100,
+      );
   Future<List<Map<String, dynamic>>> modes() => api.getDocList(
     'Mode of Payment',
     fields: ['name', 'type'],

@@ -219,6 +219,7 @@ class SupplierViewModel extends DiagnosticNotifier {
     Map<String, dynamic> fields, {
     Uint8List? imageBytes,
     String? imageFilename,
+    String? supplierId,
   }) async {
     if (_isSaving) return false;
     final sessionId = _sessionId;
@@ -234,7 +235,9 @@ class SupplierViewModel extends DiagnosticNotifier {
         );
         if (isDisposed || sessionId != _sessionId) return false;
       }
-      final created = await repository.createSupplier(payload);
+      final created = supplierId == null
+          ? await repository.createSupplier(payload)
+          : await repository.updateSupplier(supplierId, payload);
       if (sessionId != _sessionId || isDisposed) return false;
       _suppliers = [
         created,
@@ -247,7 +250,7 @@ class SupplierViewModel extends DiagnosticNotifier {
       return false;
     } catch (_) {
       if (sessionId != _sessionId || isDisposed) return false;
-      _errorMessage = 'Unable to create this supplier.';
+      _errorMessage = 'Unable to save this supplier.';
       return false;
     } finally {
       if (sessionId == _sessionId && !isDisposed) {

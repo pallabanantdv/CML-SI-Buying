@@ -170,13 +170,15 @@ class _HtmlPrintPreviewScreenState extends State<HtmlPrintPreviewScreen> {
         setState(() {
           _ready = true;
         });
-        html = html.replaceFirst(
-          RegExp(r'<head[^>]*>', caseSensitive: false),
-          '<head>'
-          '<meta name="viewport" '
-          'content="width=device-width, initial-scale=1.0, '
-          'maximum-scale=1.0, user-scalable=no">',
-        );
+        if (widget.cardOnly) {
+          html = html.replaceFirst(
+            RegExp(r'<head[^>]*>', caseSensitive: false),
+            '<head>'
+            '<meta name="viewport" '
+            'content="width=device-width, initial-scale=1.0, '
+            'user-scalable=yes">',
+          );
+        }
         await controller.loadHtmlString(
           html,
           baseUrl: widget.baseUrl?.toString(),

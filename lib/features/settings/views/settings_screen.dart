@@ -89,31 +89,32 @@ class SettingsScreen extends StatelessWidget {
                       const SizedBox(height: AppSpacing.relatedGap),
                       const Text('Your workspace for purchases and suppliers.'),
                       const SizedBox(height: AppSpacing.small),
-                      AppButton(
-                        label: 'Open-source licenses',
-                        icon: AppIconName.info,
-                        variant: AppButtonVariant.outlined,
-                        onPressed: () => showLicensePage(
-                          context: context,
-                          applicationName: 'CAML SI Buying',
-                        ),
-                      ),
+                      // AppButton(
+                      //   label: 'Open-source licenses',
+                      //   icon: AppIconName.info,
+                      //   variant: AppButtonVariant.outlined,
+                      //   onPressed: () => showLicensePage(
+                      //     context: context,
+                      //     applicationName: 'CAML SI Buying',
+                      //   ),
+                      // ),
                     ],
                   ),
                 ),
-                if (kDebugMode) ...[
-                  const SizedBox(height: AppSpacing.sectionGap),
-                  AppCard(
-                    title: 'Developer tools',
-                    child: AppButton(
-                      label: 'Open component showcase',
-                      variant: AppButtonVariant.outlined,
-                      icon: AppIconName.tune,
-                      onPressed: () =>
-                          context.pushNamedOnce(RouteNames.designSystem),
-                    ),
-                  ),
-                ],
+
+                // if (kDebugMode) ...[
+                //   const SizedBox(height: AppSpacing.sectionGap),
+                //   AppCard(
+                //     title: 'Developer tools',
+                //     child: AppButton(
+                //       label: 'Open component showcase',
+                //       variant: AppButtonVariant.outlined,
+                //       icon: AppIconName.tune,
+                //       onPressed: () =>
+                //           context.pushNamedOnce(RouteNames.designSystem),
+                //     ),
+                //   ),
+                // ],
               ],
             ),
           ),

@@ -86,4 +86,11 @@ class SupplierRepository {
 
   Future<SupplierModel> createSupplier(Map<String, dynamic> fields) async =>
       SupplierModel.fromJson(await _resourceApi.createDoc(_doctype, fields));
+
+  Future<SupplierModel> updateSupplier(
+    String id,
+    Map<String, dynamic> fields,
+  ) async => SupplierModel.fromJson(
+    await _resourceApi.updateDoc(_doctype, id, fields),
+  );
 }

@@ -8,10 +8,18 @@ class DashboardViewModel extends DiagnosticNotifier {
   DashboardData? _data;
   bool _isLoading = false;
   String? _errorMessage;
+  DateTime? _fromDate, _toDate;
   DashboardData? get data => _data;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  bool get isEmpty => _data != null && _data!.purchases.isEmpty;
+  bool get isEmpty => _data != null && _data!.summary.transactionCount == 0;
+  Future<void> setDateRange(DateTime? from, DateTime? to) async {
+    if (_isLoading) return;
+    _fromDate = from;
+    _toDate = to;
+    await refresh();
+  }
+
   Future<void> ensureLoaded() async {
     if (_data == null && !_isLoading) await refresh();
   }
@@ -22,7 +30,13 @@ class DashboardViewModel extends DiagnosticNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      final data = await repository.getDashboardData();
+      final source = repository;
+      final data =
+          source is DateFilteredDashboardRepository &&
+              _fromDate != null &&
+              _toDate != null
+          ? await source.getDashboardDataForRange(_fromDate!, _toDate!)
+          : await source.getDashboardData();
       if (!isDisposed) _data = data;
     } catch (_) {
       if (!isDisposed) {

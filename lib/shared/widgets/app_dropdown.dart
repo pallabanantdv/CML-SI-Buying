@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/navigation/app_page_transitions.dart';
@@ -15,6 +17,7 @@ class AppDropdown<T> extends StatelessWidget {
     this.validator,
     this.enabled = true,
     this.hint,
+    this.onSearch,
   });
 
   final T? value;
@@ -24,10 +27,11 @@ class AppDropdown<T> extends StatelessWidget {
   final String? Function(T?)? validator;
   final bool enabled;
   final String? hint;
+  final Future<List<DropdownMenuItem<T>>> Function(String)? onSearch;
 
   @override
   Widget build(BuildContext context) {
-    if (items.where((item) => item.enabled).length < 10) {
+    if (onSearch == null && items.where((item) => item.enabled).length < 10) {
       return DropdownButtonFormField<T>(
         key: ValueKey(value),
         initialValue: value,
@@ -73,6 +77,7 @@ class AppDropdown<T> extends StatelessWidget {
                       label: label.replaceAll(' *', '').trim(),
                       items: items,
                       selectedValue: field.value,
+                      onSearch: onSearch,
                     ),
                   );
 
@@ -117,11 +122,13 @@ class _SearchableDropdownSheet<T> extends StatefulWidget {
     required this.label,
     required this.items,
     required this.selectedValue,
+    this.onSearch,
   });
 
   final String label;
   final List<DropdownMenuItem<T>> items;
   final T? selectedValue;
+  final Future<List<DropdownMenuItem<T>>> Function(String)? onSearch;
 
   @override
   State<_SearchableDropdownSheet<T>> createState() =>
@@ -132,9 +139,42 @@ class _SearchableDropdownSheetState<T>
     extends State<_SearchableDropdownSheet<T>> {
   final _searchController = TextEditingController();
   String _query = '';
+  Timer? _debounce;
+  int _request = 0;
+  bool _loading = false;
+  bool _failed = false;
+  List<DropdownMenuItem<T>>? _results;
+
+  void _search(String value) {
+    _debounce?.cancel();
+    final request = ++_request;
+    setState(() {
+      _query = value;
+      _loading = widget.onSearch != null;
+      _failed = false;
+    });
+    if (widget.onSearch == null) return;
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final rows = await widget.onSearch!(value);
+        if (!mounted || request != _request) return;
+        setState(() {
+          _results = rows;
+          _loading = false;
+        });
+      } catch (_) {
+        if (!mounted || request != _request) return;
+        setState(() {
+          _failed = true;
+          _loading = false;
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -142,12 +182,15 @@ class _SearchableDropdownSheetState<T>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final showSearch = widget.items.where((item) => item.enabled).length >= 10;
+    final showSearch =
+        widget.onSearch != null ||
+        widget.items.where((item) => item.enabled).length >= 10;
     final query = _query.trim().toLowerCase();
-    final filteredItems = widget.items
+    final filteredItems = (_results ?? widget.items)
         .where((item) {
           if (!item.enabled) return false;
-          return _searchText(item).toLowerCase().contains(query);
+          return widget.onSearch != null ||
+              _searchText(item).toLowerCase().contains(query);
         })
         .toList(growable: false);
 
@@ -185,7 +228,7 @@ class _SearchableDropdownSheetState<T>
                   child: TextField(
                     controller: _searchController,
                     autofocus: true,
-                    onChanged: (value) => setState(() => _query = value),
+                    onChanged: _search,
                     decoration: InputDecoration(
                       hintText: 'Search ${widget.label.toLowerCase()}',
                       hintStyle: theme.textTheme.labelMedium,
@@ -197,7 +240,16 @@ class _SearchableDropdownSheetState<T>
                   ),
                 ),
               Expanded(
-                child: filteredItems.isEmpty
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _failed
+                    ? Center(
+                        child: TextButton(
+                          onPressed: () => _search(_query),
+                          child: const Text('Unable to load options. Retry'),
+                        ),
+                      )
+                    : filteredItems.isEmpty
                     ? Center(
                         child: Text(
                           'No matching options',

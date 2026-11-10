@@ -34,6 +34,7 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
   final _search = TextEditingController();
   int? _status;
   String? _supplier;
+  final _supplierLabels = <String, String>{};
   String? _productType;
   @override
   void initState() {
@@ -135,6 +136,7 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
           (record) =>
               (_status == null || (record.docStatus ?? 0) == _status) &&
               (_supplier == null ||
+                  record.supplierId == _supplier ||
                   _supplierName(record.supplierName, record.supplierId) ==
                       _supplier) &&
               (_productType == null ||
@@ -174,7 +176,40 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
                         allLabel: 'All suppliers',
                         value: _supplier,
                         options: suppliers,
-                        onChanged: (value) => setState(() => _supplier = value),
+                        onSearch: (query) async {
+                          final rows = await vm.repository.searchSuppliers(
+                            query,
+                          );
+                          return [
+                            const DropdownMenuItem(
+                              value: '',
+                              child: Text('All suppliers'),
+                            ),
+                            for (final row in rows)
+                              DropdownMenuItem<String>(
+                                value: '${row['value']}',
+                                child: Text(
+                                  _supplierLabels['${row['value']}'] =
+                                      '${row['title']} (${row['value']})',
+                                ),
+                              ),
+                          ];
+                        },
+                        onChanged: (value) {
+                          String? id = value;
+                          for (final record in vm.records) {
+                            if (_supplierName(
+                                  record.supplierName,
+                                  record.supplierId,
+                                ) ==
+                                value) {
+                              id = record.supplierId;
+                              break;
+                            }
+                          }
+                          setState(() => _supplier = id);
+                          unawaited(vm.filterBySupplier(id));
+                        },
                       ),
                       _filterDropdown(
                         label: 'Product type',
@@ -292,9 +327,11 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
     required String? value,
     required List<String> options,
     required ValueChanged<String?> onChanged,
+    Future<List<DropdownMenuItem<String>>> Function(String)? onSearch,
   }) => AppDropdown<String>(
     label: label,
     value: value ?? '',
+    onSearch: onSearch,
     items: [
       DropdownMenuItem(
         value: '',
@@ -303,7 +340,11 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
       for (final option in options)
         DropdownMenuItem(
           value: option,
-          child: Text(option, maxLines: 1, overflow: TextOverflow.ellipsis),
+          child: Text(
+            _supplierLabels[option] ?? option,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
     ],
     onChanged: (value) => onChanged(value == '' ? null : value),

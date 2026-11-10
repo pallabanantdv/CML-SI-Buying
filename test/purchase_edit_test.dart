@@ -100,6 +100,16 @@ Map<String, dynamic> record() => {
 };
 
 class EditData extends fixtures.PurchaseData {
+  final warehouseRequests = <String>[];
+  @override
+  Future<Map<String, String?>> getWarehouseAccounts(String warehouse) async {
+    warehouseRequests.add(warehouse);
+    return {
+      for (final field in PointOfPurchaseRepository.warehouseAccountFields)
+        field: 'Default $field',
+    };
+  }
+
   Map<String, dynamic> current = record();
   Map<String, dynamic>? updated;
   int creates = 0;
@@ -132,6 +142,31 @@ Finder textField(String label) =>
     find.byWidgetPredicate((w) => w is AppTextField && w.label == label);
 
 void main() {
+  test(
+    'scanned supplier lookup fetches the exact ID beyond the option list',
+    () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://erp.example'));
+      addTearDown(dio.close);
+      dio.httpClientAdapter = Adapter((request) {
+        expect(request.method, 'GET');
+        expect(request.path, '/api/resource/Supplier/SUP%2F1001');
+        return response({
+          'data': {
+            'name': 'SUP/1001',
+            'supplier_name': 'Scanned supplier',
+            'supplier_type': 'Individual',
+            'village': 'Village A',
+          },
+        });
+      });
+      final repository = PointOfPurchaseRepository(
+        FrappeResourceApi(ApiClient(DioClient(dio: dio))),
+      );
+      final supplier = await repository.getSupplierById('SUP/1001');
+      expect(supplier['supplier_name'], 'Scanned supplier');
+      expect(supplier['village'], 'Village A');
+    },
+  );
   testWidgets(
     'Update opens a prefilled form, retains children, and saves the existing record',
     (tester) async {
@@ -173,6 +208,7 @@ void main() {
       await tester.tap(find.text('Update'));
       await tester.pumpAndSettle();
       expect(find.text('Update purchase'), findsOneWidget);
+      expect(repository.warehouseRequests, ['W1']);
       expect(
         tester.widget<AppTextField>(textField('Village')).controller!.text,
         'Original village',
@@ -202,6 +238,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(repository.updated, isNotNull);
       final payload = repository.updated!;
+      for (final field in PointOfPurchaseRepository.warehouseAccountFields) {
+        expect(payload[field], 'Default $field');
+      }
       expect(repository.creates, 0);
       expect(payload['village'], 'Updated village');
       expect(payload['courier_name'], '');

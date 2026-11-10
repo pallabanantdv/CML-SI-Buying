@@ -26,9 +26,6 @@ class CreatePaymentEntryScreen extends StatefulWidget {
 class _CreatePaymentEntryScreenState extends State<CreatePaymentEntryScreen> {
   final _form = GlobalKey<FormState>();
   final _amount = TextEditingController();
-  final _received = TextEditingController();
-  final _sourceRate = TextEditingController(text: '1');
-  final _targetRate = TextEditingController(text: '1');
   final _reference = TextEditingController();
   final _remarks = TextEditingController();
   final _allocated = TextEditingController();
@@ -47,15 +44,7 @@ class _CreatePaymentEntryScreenState extends State<CreatePaymentEntryScreen> {
 
   @override
   void dispose() {
-    for (final controller in [
-      _amount,
-      _received,
-      _sourceRate,
-      _targetRate,
-      _reference,
-      _remarks,
-      _allocated,
-    ]) {
+    for (final controller in [_amount, _reference, _remarks, _allocated]) {
       controller.dispose();
     }
     super.dispose();
@@ -73,9 +62,6 @@ class _CreatePaymentEntryScreenState extends State<CreatePaymentEntryScreen> {
   }
 
   void _resetAmounts(SupplierPaymentViewModel vm) {
-    _sourceRate.text = vm.fromCurrency == vm.companyCurrency ? '1' : '';
-    _targetRate.text = vm.toCurrency == vm.companyCurrency ? '1' : '';
-    _received.text = vm.fromCurrency == vm.toCurrency ? _amount.text : '';
     _allocated.clear();
   }
 
@@ -94,6 +80,20 @@ class _CreatePaymentEntryScreenState extends State<CreatePaymentEntryScreen> {
         value: value,
         enabled: !vm.saving && !vm.loadingAccounts,
         hint: 'Select ${label.toLowerCase()}',
+        onSearch: titleField == 'supplier_name'
+            ? (query) async {
+                final results = await vm.searchSuppliers(query);
+                return [
+                  for (final row in results)
+                    DropdownMenuItem<String>(
+                      value: '${row['name']}',
+                      child: Text(
+                        '${row['supplier_name'] ?? row['name']} (${row['name']})',
+                      ),
+                    ),
+                ];
+              }
+            : null,
         validator: (value) =>
             value == null ? 'Select ${label.toLowerCase()}.' : null,
         items: [
@@ -161,9 +161,9 @@ class _CreatePaymentEntryScreenState extends State<CreatePaymentEntryScreen> {
     final name = await vm.save(
       date: _stamp(_date),
       amount: _number(_amount),
-      received: _number(_received),
-      sourceRate: _number(_sourceRate),
-      targetRate: _number(_targetRate),
+      received: _number(_amount),
+      sourceRate: 1,
+      targetRate: 1,
       reference: _reference.text,
       referenceDate: _referenceDate == null ? '' : _stamp(_referenceDate!),
       remarks: _remarks.text,
@@ -223,162 +223,184 @@ class _CreatePaymentEntryScreenState extends State<CreatePaymentEntryScreen> {
                     child: ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
-                        const Text(
-                          'Record a supplier payment or advance. Saving creates a draft for review in ERPNext.',
-                        ),
-                        const SizedBox(height: 16),
+                        // const Text(
+                        //   'Record a supplier payment or advance. Saving creates a draft for review in ERPNext.',
+                        // ),
                         AppCard(
                           title: 'Payment details',
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const Text(
-                                'Payment Type: Pay   ·   Party Type: Supplier',
-                              ),
                               const SizedBox(height: 16),
                               _dateField(
                                 'Posting date',
                                 _date,
                                 (value) => _date = value,
                               ),
-                              _select('Company', vm.company, vm.companies, (
-                                value,
-                              ) {
-                                unawaited(vm.selectCompany(value));
-                                _resetAmounts(vm);
-                              }),
-                              _select('Supplier', vm.supplier, vm.suppliers, (
+                              CheckboxListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text('Supplier Advance Transfer'),
+                                value: vm.supplierAdvanceTransfer,
+                                onChanged: vm.saving
+                                    ? null
+                                    : (value) {
+                                        vm.setSupplierAdvanceTransfer(
+                                          value ?? false,
+                                        );
+                                        _resetAmounts(vm);
+                                      },
+                              ),
+                              AppDropdown<String>(
+                                label: 'Payment Type',
+                                value: vm.paymentType,
+                                enabled: !vm.saving,
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'Pay',
+                                    child: Text('Pay'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Receive',
+                                    child: Text('Receive'),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  vm.setSupplierAdvanceTransfer(
+                                    value == 'Receive',
+                                  );
+                                  _resetAmounts(vm);
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              const Text('Party Type: Supplier'),
+                              const SizedBox(height: 16),
+
+                              if (vm.supplierAdvanceTransfer) ...[
+                                _select(
+                                  'Supplier',
+                                  vm.transferSupplier,
+                                  vm.suppliers,
+                                  (value) => setState(
+                                    () => vm.transferSupplier = value,
+                                  ),
+                                  titleField: 'supplier_name',
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.only(bottom: 16),
+                                  child: Text(
+                                    'The advance will be deducted from this supplier and added to the Party selected below.',
+                                  ),
+                                ),
+                              ],
+                              _select('Party', vm.supplier, vm.suppliers, (
                                 value,
                               ) {
                                 vm.supplier = value;
                                 _allocated.clear();
                                 unawaited(vm.loadInvoices());
                               }, titleField: 'supplier_name'),
-                              _select(
-                                'Mode of Payment',
-                                vm.mode,
-                                vm.modes,
-                                (value) => setState(() => vm.mode = value),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        AppCard(
-                          title: 'Accounts and amounts',
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (vm.loadingAccounts)
-                                const LinearProgressIndicator(),
-                              if (vm.accountError != null) ...[
-                                Text(vm.accountError!),
-                                TextButton(
-                                  onPressed: () =>
-                                      unawaited(vm.selectCompany(vm.company)),
-                                  child: const Text('Retry accounts'),
+                              if (vm.supplier != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: Text(
+                                    'Party Name: ${vm.find(vm.suppliers, vm.supplier)?['supplier_name'] ?? vm.supplier}',
+                                  ),
                                 ),
-                              ],
-                              _select(
-                                'Paid From (Bank / Cash)',
-                                vm.paidFrom,
-                                vm.sourceAccounts,
-                                (value) => setState(() {
-                                  vm.paidFrom = value;
-                                  _resetAmounts(vm);
-                                }),
-                              ),
-                              _select(
-                                'Paid To (Supplier account)',
-                                vm.paidTo,
-                                vm.partyAccounts,
-                                (value) {
-                                  vm.paidTo = value;
-                                  _resetAmounts(vm);
-                                  unawaited(vm.loadInvoices());
-                                },
-                              ),
+                              _select('Mode of Payment', vm.mode, vm.modes, (
+                                value,
+                              ) {
+                                vm.mode = value;
+                                vm.selectDefaultAccounts();
+                                _allocated.clear();
+                                unawaited(vm.loadInvoices());
+                              }),
+
                               _numberField(
                                 'Paid amount (${vm.fromCurrency})',
                                 _amount,
-                                onChanged: (value) {
-                                  if (vm.fromCurrency == vm.toCurrency) {
-                                    _received.text = value;
-                                  }
-                                },
-                              ),
-                              _numberField(
-                                'Received amount (${vm.toCurrency})',
-                                _received,
-                              ),
-                              _numberField(
-                                'Source exchange rate to ${vm.companyCurrency}',
-                                _sourceRate,
-                                enabled: vm.fromCurrency != vm.companyCurrency,
-                              ),
-                              _numberField(
-                                'Target exchange rate to ${vm.companyCurrency}',
-                                _targetRate,
-                                enabled: vm.toCurrency != vm.companyCurrency,
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        AppCard(
-                          title: 'Invoice allocation (optional)',
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text(
-                                'Leave as advance to make a payment without an invoice reference.',
-                              ),
-                              if (vm.loadingInvoices)
-                                const LinearProgressIndicator(),
-                              if (vm.invoiceError != null) ...[
-                                Text(vm.invoiceError!),
-                                TextButton(
-                                  onPressed: () => unawaited(vm.loadInvoices()),
-                                  child: const Text('Retry invoices'),
-                                ),
-                              ],
-                              const SizedBox(height: 12),
-                              AppDropdown<String>(
-                                label: 'Purchase Invoice',
-                                value: vm.invoice ?? '__advance__',
-                                enabled: !vm.saving && !vm.loadingInvoices,
-                                items: [
-                                  const DropdownMenuItem(
-                                    value: '__advance__',
-                                    child: Text('Pay as advance'),
-                                  ),
-                                  for (final row in vm.invoices)
-                                    DropdownMenuItem(
-                                      value: '${row['name']}',
-                                      child: Text(
-                                        '${row['name']} · Outstanding ${row['outstanding_amount']} ${vm.toCurrency}',
-                                      ),
-                                    ),
-                                ],
-                                onChanged: (value) => setState(() {
-                                  vm.invoice = value == '__advance__'
-                                      ? null
-                                      : value;
-                                  _allocated.text = vm.invoice == null
-                                      ? ''
-                                      : '${vm.find(vm.invoices, vm.invoice)?['outstanding_amount'] ?? ''}';
-                                }),
-                              ),
-                              if (vm.invoice != null) ...[
-                                const SizedBox(height: 16),
-                                _numberField(
-                                  'Allocated amount (${vm.toCurrency})',
-                                  _allocated,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
+                        // const SizedBox(height: 16),
+                        // AppCard(
+                        //   title: 'Accounts and amounts',
+                        //   child: Column(
+                        //     crossAxisAlignment: CrossAxisAlignment.stretch,
+                        //     children: [
+                        //       if (vm.loadingAccounts)
+                        //         const LinearProgressIndicator(),
+                        //       if (vm.accountError != null) ...[
+                        //         Text(vm.accountError!),
+                        //         TextButton(
+                        //           onPressed: () =>
+                        //               unawaited(vm.selectCompany(vm.company)),
+                        //           child: const Text('Retry accounts'),
+                        //         ),
+                        //       ],
+
+                        //     ],
+                        //   ),
+                        // ),
+
+                        // const SizedBox(height: 16),
+                        // if (!vm.supplierAdvanceTransfer)
+                        //   AppCard(
+                        //     title: 'Invoice allocation (optional)',
+                        //     child: Column(
+                        //       crossAxisAlignment: CrossAxisAlignment.stretch,
+                        //       children: [
+                        //         const Text(
+                        //           'Leave as advance to make a payment without an invoice reference.',
+                        //         ),
+                        //         if (vm.loadingInvoices)
+                        //           const LinearProgressIndicator(),
+                        //         if (vm.invoiceError != null) ...[
+                        //           Text(vm.invoiceError!),
+                        //           TextButton(
+                        //             onPressed: () =>
+                        //                 unawaited(vm.loadInvoices()),
+                        //             child: const Text('Retry invoices'),
+                        //           ),
+                        //         ],
+                        //         const SizedBox(height: 12),
+                        //         AppDropdown<String>(
+                        //           label: 'Purchase Invoice',
+                        //           value: vm.invoice ?? '__advance__',
+                        //           enabled: !vm.saving && !vm.loadingInvoices,
+                        //           items: [
+                        //             const DropdownMenuItem(
+                        //               value: '__advance__',
+                        //               child: Text('Pay as advance'),
+                        //             ),
+                        //             for (final row in vm.invoices)
+                        //               DropdownMenuItem(
+                        //                 value: '${row['name']}',
+                        //                 child: Text(
+                        //                   '${row['name']} · Outstanding ${row['outstanding_amount']} ${vm.toCurrency}',
+                        //                 ),
+                        //               ),
+                        //           ],
+                        //           onChanged: (value) => setState(() {
+                        //             vm.invoice = value == '__advance__'
+                        //                 ? null
+                        //                 : value;
+                        //             _allocated.text = vm.invoice == null
+                        //                 ? ''
+                        //                 : '${vm.find(vm.invoices, vm.invoice)?['outstanding_amount'] ?? ''}';
+                        //           }),
+                        //         ),
+                        //         if (vm.invoice != null) ...[
+                        //           const SizedBox(height: 16),
+                        //           _numberField(
+                        //             'Allocated amount (${vm.toCurrency})',
+                        //             _allocated,
+                        //           ),
+                        //         ],
+                        //       ],
+                        //     ),
+                        //   ),
                         const SizedBox(height: 16),
                         AppCard(
                           title: 'Transaction reference',

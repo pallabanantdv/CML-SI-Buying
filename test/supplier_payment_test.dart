@@ -33,8 +33,9 @@ class Payments extends SupplierPaymentRepository {
     {'name': 'CAML', 'default_currency': 'SBD'},
   ];
   @override
-  Future<List<Map<String, dynamic>>> suppliers() async => [
+  Future<List<Map<String, dynamic>>> suppliers({String query = ''}) async => [
     {'name': 'SUP-1', 'supplier_name': 'Supplier A'},
+    {'name': 'SUP-2', 'supplier_name': 'Supplier B'},
   ];
   @override
   Future<List<Map<String, dynamic>>> modes() async => [
@@ -120,6 +121,107 @@ class Directory extends SupplierRepository {
 }
 
 void main() {
+  test(
+    'first company and company-currency accounts are selected automatically',
+    () async {
+      final vm = SupplierPaymentViewModel(Payments());
+      addTearDown(vm.dispose);
+      await vm.initialize();
+      expect(vm.company, 'CAML');
+      expect(vm.paidFrom, 'Cash');
+      expect(vm.paidTo, 'Payable');
+      vm.mode = 'Cash';
+      vm.selectDefaultAccounts();
+      vm.supplier = 'SUP-1';
+      expect(await save(vm), isNotNull);
+      vm.setSupplierAdvanceTransfer(true);
+      expect(vm.paidFrom, 'Payable');
+      expect(vm.paidTo, 'Cash');
+    },
+  );
+  test(
+    'advance transfer switches direction and saves the selected payment type',
+    () async {
+      final repository = Payments();
+      final vm = await ready(repository);
+      addTearDown(vm.dispose);
+      expect(vm.paymentType, 'Pay');
+      vm.setSupplierAdvanceTransfer(true);
+      expect(vm.paymentType, 'Receive');
+      expect(vm.paidFrom, 'Payable');
+      expect(vm.paidTo, 'Cash');
+      await vm.loadInvoices();
+      expect(vm.invoices, isEmpty);
+      vm.transferSupplier = 'SUP-2';
+      expect(await save(vm), isNotNull);
+      expect(repository.payload, containsPair('payment_type', 'Receive'));
+      expect(
+        repository.payload,
+        containsPair('custom_supplier_advance_transfer', 1),
+      );
+      expect(repository.payload, containsPair('custom_supplier', 'SUP-2'));
+      expect(
+        repository.payload,
+        containsPair('custom_supplier_name', 'Supplier B'),
+      );
+      expect(repository.payload, containsPair('party', 'SUP-1'));
+      vm.setSupplierAdvanceTransfer(false);
+      expect(vm.paymentType, 'Pay');
+      expect(vm.paidFrom, 'Cash');
+      expect(vm.paidTo, 'Payable');
+      expect(await save(vm), isNotNull);
+      expect(repository.payload, containsPair('payment_type', 'Pay'));
+      expect(vm.transferSupplier, isNull);
+      expect(
+        repository.payload,
+        containsPair('custom_supplier_advance_transfer', 0),
+      );
+      expect(repository.payload, isNot(contains('custom_supplier')));
+    },
+  );
+
+  test('advance transfer requires a different valid source supplier', () async {
+    final repository = Payments();
+    final vm = await ready(repository);
+    addTearDown(vm.dispose);
+    vm.setSupplierAdvanceTransfer(true);
+    expect(await save(vm), isNull);
+    vm.transferSupplier = 'unknown';
+    expect(await save(vm), isNull);
+    vm.transferSupplier = vm.supplier;
+    expect(await save(vm), isNull);
+    expect(repository.payload, isNull);
+  });
+
+  testWidgets('checkbox and payment type dropdown stay synchronized', (
+    tester,
+  ) async {
+    final vm = SupplierPaymentViewModel(Payments());
+    addTearDown(vm.dispose);
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: vm,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const CreatePaymentEntryScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final checkbox = find.byType(CheckboxListTile);
+    expect(tester.widget<CheckboxListTile>(checkbox).value, isFalse);
+    await tester.tap(checkbox);
+    await tester.pumpAndSettle();
+    expect(vm.paymentType, 'Receive');
+    expect(tester.widget<CheckboxListTile>(checkbox).value, isTrue);
+    await tester.tap(find.text('Receive'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pay').last);
+    await tester.pumpAndSettle();
+    expect(vm.paymentType, 'Pay');
+    expect(tester.widget<CheckboxListTile>(checkbox).value, isFalse);
+  });
+
   testWidgets('directory Payment Entry button opens the payment route', (
     tester,
   ) async {
@@ -265,7 +367,9 @@ void main() {
     await tester.tap(find.text('Save draft'));
     await tester.pumpAndSettle();
     expect(repository.payload, isNull);
-    expect(find.text('Select company.'), findsOneWidget);
+    expect(vm.company, 'CAML');
+    expect(find.text('Company *'), findsNothing);
+    expect(find.text('Select party.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     vm.dispose();
   });

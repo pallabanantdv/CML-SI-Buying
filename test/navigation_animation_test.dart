@@ -74,6 +74,59 @@ Future<void> backMessage(
 }
 
 void main() {
+  testWidgets('push guard resets when sign-out replaces the route stack', (
+    tester,
+  ) async {
+    final signedIn = ValueNotifier(true);
+    final router = GoRouter(
+      initialLocation: '/profile',
+      refreshListenable: signedIn,
+      redirect: (_, state) {
+        if (!signedIn.value)
+          return state.uri.path == '/login' ? null : '/login';
+        return state.uri.path == '/login' ? '/profile' : null;
+      },
+      routes: [
+        GoRoute(
+          path: '/login',
+          builder: (_, _) => const Scaffold(body: Text('Login')),
+        ),
+        GoRoute(
+          path: '/profile',
+          builder: (context, _) => Scaffold(
+            body: TextButton(
+              onPressed: () => context.pushNamedOnce('settings'),
+              child: const Text('Open settings'),
+            ),
+          ),
+          routes: [
+            GoRoute(
+              path: 'settings',
+              name: 'settings',
+              builder: (_, _) => const Scaffold(body: Text('Settings page')),
+            ),
+          ],
+        ),
+      ],
+    );
+    await tester.pumpWidget(host(router));
+    await tester.pumpAndSettle();
+    for (var session = 0; session < 3; session++) {
+      await tester.tap(find.text('Open settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('Settings page'), findsOneWidget);
+      signedIn.value = false;
+      await tester.pumpAndSettle();
+      expect(find.text('Login'), findsOneWidget);
+      signedIn.value = true;
+      await tester.pumpAndSettle();
+      expect(find.text('Open settings'), findsOneWidget);
+    }
+    await tester.pumpWidget(const SizedBox());
+    router.dispose();
+    signedIn.dispose();
+  });
+
   for (final platform in [
     TargetPlatform.windows,
     TargetPlatform.android,

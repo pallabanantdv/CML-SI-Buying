@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'supplier_qr_scanner_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -87,6 +89,8 @@ class _CreatePointOfPurchaseScreenState
   }
 
   String? _supplier;
+  final _searchedSuppliers = <String, Map<String, dynamic>>{};
+  final _searchedVessels = <String, Map<String, dynamic>>{};
   String? _deliveryType;
   String? _productType;
   DateTime _purchaseDate = DateTime.now();
@@ -165,6 +169,8 @@ class _CreatePointOfPurchaseScreenState
     await Future.wait([
       vm.loadCreateOptions(),
       if (_supplier != null) vm.loadSupplierAdvances(_supplier),
+      if (_isEditing && _links['collection_location']?.isNotEmpty == true)
+        _loadWarehouseAccounts(vm),
     ]);
   }
 
@@ -299,6 +305,7 @@ class _CreatePointOfPurchaseScreenState
         isLoading: viewModel.isCreating,
         onPressed:
             viewModel.isCreating ||
+                _scanningSupplier ||
                 _loadingWarehouseAccounts ||
                 _loadingRecord ||
                 _recordError != null ||
@@ -478,6 +485,18 @@ class _CreatePointOfPurchaseScreenState
         'Collection Location',
         'Warehouse',
       ),
+      OutlinedButton.icon(
+        onPressed:
+            _scanningSupplier ||
+                _optionsLoading(viewModel) ||
+                viewModel.isCreating
+            ? null
+            : () => _scanSupplier(viewModel),
+        icon: const Icon(Icons.qr_code_scanner),
+        label: Text(
+          _scanningSupplier ? 'Loading supplier...' : 'Scan supplier QR code',
+        ),
+      ),
       _supplierField(viewModel),
       _readOnlyValue('Supplier Name', _fieldText('supplier_name1')),
       _textField('village', 'Village', required: true),
@@ -496,44 +515,100 @@ class _CreatePointOfPurchaseScreenState
           value: _supplier,
           label: 'Supplier Code *',
           hint: 'Select a supplier',
-          enabled: !_optionsLoading(viewModel),
+          enabled: !_optionsLoading(viewModel) && !_scanningSupplier,
           items: _dropdownItems(
-            viewModel.supplierOptions,
+            {
+              for (final row in viewModel.supplierOptions)
+                '${row['value']}': row,
+              ..._searchedSuppliers,
+            }.values.toList(),
             selectedValue: _supplier,
           ),
-          validator: (value) => value == null ? 'Select a supplier.' : null,
-          onChanged: (value) {
-            if (value == _supplier) return;
-            setState(() {
-              _supplier = value;
-              _controller('advances').clear();
-              final selected = _findOption(viewModel.supplierOptions, value);
-              _controller('supplier_name1').text =
-                  selected?['title']?.toString() ?? '';
-              _controller('supplier_type').text =
-                  selected?['supplier_type']?.toString() ?? '';
-              _controller('village').text =
-                  selected?['village']?.toString() ?? '';
-              _controller('province').text =
-                  selected?['province']?.toString() ?? '';
-              _controller('phonemobile_no').text =
-                  selected?['custom_contact_number']?.toString() ??
-                  selected?['mobile_no']?.toString() ??
-                  '';
-              final island = selected?['custom_island']?.toString();
-              if (island != null &&
-                  viewModel
-                      .linkOptions('Island')
-                      .any((option) => option['value'] == island)) {
-                _links['island'] = island;
-              } else {
-                _links['island'] = null;
+          onSearch: (query) async {
+            final rows = await viewModel.repository.searchSuppliers(query);
+            if (mounted) {
+              for (final row in rows) {
+                _searchedSuppliers['${row['value']}'] = row;
               }
-            });
-            viewModel.clearCreateError();
-            unawaited(viewModel.loadSupplierAdvances(value));
+            }
+            return _dropdownItems(rows);
           },
+          validator: (value) => value == null ? 'Select a supplier.' : null,
+          onChanged: (value) => _selectSupplier(viewModel, value),
         );
+
+  void _selectSupplier(
+    PointOfPurchaseViewModel viewModel,
+    String? value, {
+    Map<String, dynamic>? supplier,
+  }) {
+    if (value == _supplier && supplier == null) return;
+    setState(() {
+      _supplier = value;
+      _controller('advances').clear();
+      final selected =
+          supplier ??
+          _searchedSuppliers[value] ??
+          _findOption(viewModel.supplierOptions, value);
+      _controller('supplier_name1').text = selected?['title']?.toString() ?? '';
+      _controller('supplier_type').text =
+          selected?['supplier_type']?.toString() ?? '';
+      _controller('village').text = selected?['village']?.toString() ?? '';
+      _controller('province').text = selected?['province']?.toString() ?? '';
+      _controller('phonemobile_no').text =
+          selected?['custom_contact_number']?.toString() ??
+          selected?['mobile_no']?.toString() ??
+          '';
+      final island = selected?['custom_island']?.toString();
+      if (island != null &&
+          (supplier != null ||
+              viewModel
+                  .linkOptions('Island')
+                  .any((option) => option['value'] == island))) {
+        _links['island'] = island;
+      } else {
+        _links['island'] = null;
+      }
+    });
+    viewModel.clearCreateError();
+    unawaited(viewModel.loadSupplierAdvances(value));
+  }
+
+  bool _scanningSupplier = false;
+  Future<void> _scanSupplier(PointOfPurchaseViewModel vm) async {
+    if (_scanningSupplier) return;
+    setState(() => _scanningSupplier = true);
+    try {
+      final id = await Navigator.of(context).push<String>(
+        MaterialPageRoute(builder: (_) => const SupplierQrScannerScreen()),
+      );
+      if (!mounted || id == null) return;
+      final record = await vm.repository.getSupplierById(id.trim());
+      if (!mounted) return;
+      if (record['name'] != id.trim() ||
+          '${record['disabled']}' == '1' ||
+          record['disabled'] == true) {
+        throw const AppException('This supplier is unavailable.');
+      }
+      _selectSupplier(
+        vm,
+        id.trim(),
+        supplier: {...record, 'title': record['supplier_name']},
+      );
+    } catch (error) {
+      if (mounted) {
+        AppSnackbar.show(
+          context,
+          error is AppException
+              ? error.message
+              : 'Unable to load the scanned supplier. Please retry.',
+          type: AppMessageType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _scanningSupplier = false);
+    }
+  }
 
   Widget _deliverySection(PointOfPurchaseViewModel viewModel) => AppCard(
     tone: AppCardTone.info,
@@ -663,10 +738,10 @@ class _CreatePointOfPurchaseScreenState
           _linkField(viewModel, 'vesel', 'Vessel', 'Supplier'),
           _readOnlyValue(
             'Vessel Name',
-            _findOption(
-                  viewModel.supplierOptions,
-                  _links['vesel'],
-                )?['title']?.toString() ??
+            _findOption([
+                  ...viewModel.supplierOptions,
+                  ..._searchedVessels.values,
+                ], _links['vesel'])?['title']?.toString() ??
                 '',
           ),
           // Row(
@@ -894,8 +969,13 @@ class _CreatePointOfPurchaseScreenState
     String doctype, {
     bool required = false,
   }) {
-    final options = doctype == 'Supplier'
-        ? viewModel.supplierOptions
+    final options = fieldname == 'collection_location'
+        ? viewModel.linkOptions('Collection Location')
+        : doctype == 'Supplier'
+        ? {
+            for (final row in viewModel.supplierOptions) '${row['value']}': row,
+            if (fieldname == 'vesel') ..._searchedVessels,
+          }.values.toList()
         : viewModel.linkOptions(doctype);
     if (_optionsLoading(viewModel) && options.isEmpty) {
       return _OptionSkeleton(label: label);
@@ -914,6 +994,17 @@ class _CreatePointOfPurchaseScreenState
           !(_loadingWarehouseAccounts &&
               _warehouseAccountFields.contains(fieldname)),
       items: _dropdownItems(options, selectedValue: _links[fieldname]),
+      onSearch: fieldname == 'vesel'
+          ? (query) async {
+              final rows = await viewModel.repository.searchSuppliers(query);
+              if (mounted) {
+                for (final row in rows) {
+                  _searchedVessels['${row['value']}'] = row;
+                }
+              }
+              return _dropdownItems(rows);
+            }
+          : null,
       validator: required
           ? (value) =>
                 value == null ? 'Select ${label.replaceAll(' *', '')}.' : null
@@ -1466,7 +1557,9 @@ class _CreatePointOfPurchaseScreenState
           'title': _fieldText('supplier_name1'),
           'supplier_type': _fieldText('supplier_type'),
         };
-    final vessel = _findOption(viewModel.supplierOptions, _links['vesel']);
+    final vessel =
+        _searchedVessels[_links['vesel']] ??
+        _findOption(viewModel.supplierOptions, _links['vesel']);
     final item = _calculatedItem(viewModel)!;
     final originalItems = _originalRows('supplier_pop_item');
     final itemRows = [

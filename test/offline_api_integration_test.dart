@@ -17,6 +17,7 @@ import 'package:cml_si_buying/core/network/frappe_resource_api.dart';
 import 'package:cml_si_buying/core/services/session_service.dart';
 import 'package:cml_si_buying/core/storage/secure_storage_service.dart';
 import 'package:cml_si_buying/features/auth/repositories/auth_repository.dart';
+import 'package:cml_si_buying/features/profile/repositories/profile_repository.dart';
 import 'package:cml_si_buying/features/point_of_purchase/repositories/point_of_purchase_repository.dart';
 import 'package:cml_si_buying/features/point_of_purchase/viewmodels/point_of_purchase_viewmodel.dart';
 
@@ -99,6 +100,59 @@ void main() {
     expect(calls, 0);
     expect(cache.store.entries, isEmpty);
   });
+  test(
+    'submit validation failures do not show a saved-data refresh banner',
+    () async {
+      for (final status in [200, 417]) {
+        dio.httpClientAdapter = Adapter(
+          (_) => response({'exc_type': 'ValidationError'}, status),
+        );
+        await expectLater(
+          api.post('/api/method/frappe.client.submit', data: {'doc': '{}'}),
+          throwsA(isA<AppException>()),
+        );
+        expect(network.refreshFailed, isFalse);
+        expect(network.offline, isFalse);
+      }
+    },
+  );
+  test(
+    'optional role permission denial does not mark profile refresh failed',
+    () async {
+      dio.httpClientAdapter = Adapter((request) {
+        if (Uri.decodeComponent(request.path).endsWith('/Has Role')) {
+          return response({'exc_type': 'PermissionError'}, 403);
+        }
+        return response({
+          'data': [
+            {'name': 'alice', 'email': 'alice', 'full_name': 'Alice'},
+          ],
+        });
+      });
+      final profile = await ProfileRepository(FrappeResourceApi(api))
+          .getProfile('alice');
+      expect(profile.fullName, 'Alice');
+      expect(profile.roles, isEmpty);
+      expect(network.refreshFailed, isFalse);
+      expect(network.offline, isFalse);
+    },
+  );
+
+  test('optional role server errors still report refresh failure', () async {
+    dio.httpClientAdapter = Adapter((request) {
+      if (Uri.decodeComponent(request.path).endsWith('/Has Role')) {
+        return response({'message': 'Unavailable'}, 503);
+      }
+      return response({
+        'data': [
+          {'name': 'alice', 'email': 'alice'},
+        ],
+      });
+    });
+    await ProfileRepository(FrappeResourceApi(api)).getProfile('alice');
+    expect(network.refreshFailed, isTrue);
+  });
+
   test('only successful resource mutations invalidate cached reads', () async {
     await api.get(path);
     dio.httpClientAdapter = Adapter(

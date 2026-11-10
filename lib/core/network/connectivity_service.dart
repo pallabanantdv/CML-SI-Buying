@@ -60,12 +60,12 @@ class ConnectivityService extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  void failure(DioException error) {
+  void failure(DioException error, {bool isRefresh = true}) {
     if (error.response == null && error.type != DioExceptionType.cancel) {
       offline = true;
     }
     if (error.response != null) offline = !hasNetwork;
-    refreshFailed = true;
+    if (isRefresh) refreshFailed = true;
     notifyListeners();
   }
 

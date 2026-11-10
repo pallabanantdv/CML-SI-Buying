@@ -11,6 +11,7 @@ class ProfileRepository {
     'email',
     'first_name',
     'full_name',
+    'user_image',
     'username',
     'enabled',
     'language',
@@ -23,6 +24,14 @@ class ProfileRepository {
 
   final FrappeResourceApi _resourceApi;
   CacheManager? get cache => _resourceApi.cache;
+
+  String? imageUrl(String? path) {
+    if (path == null || path.trim().isEmpty) return null;
+    final uri = _resourceApi.serverUri.resolve(path.trim());
+    return uri.scheme == 'http' || uri.scheme == 'https'
+        ? uri.toString()
+        : null;
+  }
 
   Future<ProfileModel> getProfile(String email) async {
     final users = await _resourceApi.getDocList(
@@ -43,6 +52,7 @@ class ProfileRepository {
     try {
       final roleRecords = await _resourceApi.getDocList(
         'Has Role',
+        optionalPermission: true,
         fields: const ['role'],
         filters: [
           ['parent', '=', email],

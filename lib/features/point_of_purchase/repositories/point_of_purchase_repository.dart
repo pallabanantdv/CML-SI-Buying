@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import '../../../core/cache/cache_manager.dart';
 import '../../../config/constants/api_endpoints.dart';
@@ -16,6 +17,12 @@ class PointOfPurchaseRepository {
   static const _doctype = 'Supplier Point Of Purchase';
   final FrappeResourceApi _resourceApi;
   CacheManager? get cache => _resourceApi.cache;
+  Uri get printServerUri => _resourceApi.serverUri;
+  Future<Map<String, String>> printCookies() => _resourceApi.printCookies();
+  Future<String> getInvoicePrintHtml(String invoice) => _resourceApi
+      .getPrintHtml('Purchase Invoice', invoice, 'PI', language: 'en');
+  Future<Uint8List> getInvoicePrintPdf(String invoice) => _resourceApi
+      .getPrintPdf('Purchase Invoice', invoice, 'PI', language: 'en');
 
   static const warehouseAccountFields = [
     'cash_account',
@@ -75,6 +82,9 @@ class PointOfPurchaseRepository {
         .toList(growable: false);
   }
 
+  Future<Map<String, dynamic>> getSupplierById(String id) =>
+      _resourceApi.getDoc('Supplier', id);
+
   Future<List<PointOfPurchaseModel>> getPointOfPurchases() async {
     final records = await _resourceApi.getDocList(
       _doctype,
@@ -84,6 +94,58 @@ class PointOfPurchaseRepository {
     );
     return records.map(PointOfPurchaseModel.fromJson).toList(growable: false);
   }
+
+  Future<List<PointOfPurchaseModel>> getPurchasesForSupplier(
+    String supplier,
+  ) async {
+    final rows = await _resourceApi.getDocList(
+      _doctype,
+      fields: PointOfPurchaseModel.listFields,
+      filters: [
+        ['supplier_name', '=', supplier],
+      ],
+      orderBy: 'pop_datetime desc',
+      limitPageLength: 50,
+    );
+    return rows.map(PointOfPurchaseModel.fromJson).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> searchSuppliers(String query) async =>
+      _toOptions(
+        await _resourceApi.getDocList(
+          'Supplier',
+          fields: [
+            'name',
+            'supplier_name',
+            'supplier_type',
+            'village',
+            'province',
+            'custom_island',
+            'custom_contact_number',
+            'mobile_no',
+          ],
+          filters: [
+            ['disabled', '=', 0],
+          ],
+          orFilters: query.trim().isEmpty
+              ? null
+              : [
+                  ['name', 'like', '%${query.trim()}%'],
+                  ['supplier_name', 'like', '%${query.trim()}%'],
+                ],
+          orderBy: 'supplier_name asc',
+          limitPageLength: 100,
+        ),
+        titleField: 'supplier_name',
+        extraFields: const [
+          'supplier_type',
+          'village',
+          'province',
+          'custom_island',
+          'custom_contact_number',
+          'mobile_no',
+        ],
+      );
 
   Future<Map<String, dynamic>> getPointOfPurchase(String documentName) =>
       _resourceApi.getDoc(_doctype, documentName);
@@ -229,6 +291,20 @@ class PointOfPurchaseRepository {
       'mobile_no',
     ],
   );
+
+  Future<List<Map<String, dynamic>>> getCollectionLocationOptions() async =>
+      _toOptions(
+        await _resourceApi.getDocList(
+          'Warehouse',
+          fields: const ['name'],
+          filters: const [
+            ['warehouse_type', '=', 'Shed'],
+          ],
+          orderBy: 'name asc',
+          limitPageLength: 300,
+        ),
+        titleField: 'name',
+      );
 
   Future<List<Map<String, dynamic>>> getItemOptions() async => _toOptions(
     await _resourceApi.getDocList(

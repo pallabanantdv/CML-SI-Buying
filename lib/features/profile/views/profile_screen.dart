@@ -147,6 +147,9 @@ class _UserProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final fields = profile.fields;
+    final imageUrl = context.read<ProfileViewModel>().repository.imageUrl(
+      fields['user_image']?.toString(),
+    );
     final initials = profile.fullName
         .trim()
         .split(RegExp(r'\s+'))
@@ -188,6 +191,10 @@ class _UserProfileCard extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 20,
+                    foregroundImage: imageUrl == null
+                        ? null
+                        : NetworkImage(imageUrl),
+                    onForegroundImageError: imageUrl == null ? null : (_, _) {},
                     backgroundColor: theme.colorScheme.secondaryContainer,
                     child: Text(
                       initials.isEmpty ? '?' : initials,
@@ -238,9 +245,11 @@ class _UserProfileCard extends StatelessWidget {
                 for (final field in visibleFields)
                   _ProfileDetailRow(
                     label: field.$2,
-                    value: field.$1 == 'enabled'
-                        ? (isEnabled ? 'Enabled' : 'Disabled')
-                        : '${fields[field.$1]}',
+                    value: _profileFieldValue(
+                      context,
+                      field.$1,
+                      fields[field.$1],
+                    ),
                     icon: _profileFieldIcon(field.$1),
                     accent: theme.colorScheme.primary,
                   ),
@@ -357,3 +366,18 @@ AppIconName _profileFieldIcon(String field) => switch (field) {
   'language' || 'time_zone' => AppIconName.settings,
   _ => AppIconName.info,
 };
+
+String _profileFieldValue(BuildContext context, String field, dynamic value) {
+  final text = value?.toString().trim() ?? '';
+  if (!const {'creation', 'last_login', 'last_active'}.contains(field)) {
+    return text;
+  }
+  final date = DateTime.tryParse(text);
+  if (date == null) return text;
+  final localizations = MaterialLocalizations.of(context);
+  final time = localizations.formatTimeOfDay(
+    TimeOfDay.fromDateTime(date),
+    alwaysUse24HourFormat: false,
+  );
+  return '${localizations.formatMediumDate(date)} • $time';
+}

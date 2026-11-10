@@ -11,31 +11,99 @@ class SupplierPaymentViewModel extends DiagnosticNotifier {
       accounts = [],
       invoices = [];
   String? company, supplier, mode, paidFrom, paidTo, invoice;
+  String? transferSupplier;
   bool loading = false,
       loadingAccounts = false,
       loadingInvoices = false,
       saving = false;
   String? error, accountError, invoiceError;
   int _accountRequest = 0, _invoiceRequest = 0;
+  bool _supplierAdvanceTransfer = false;
+  bool get supplierAdvanceTransfer => _supplierAdvanceTransfer;
+  String get paymentType => _supplierAdvanceTransfer ? 'Receive' : 'Pay';
+  void setSupplierAdvanceTransfer(bool value) {
+    if (saving || isDisposed || value == _supplierAdvanceTransfer) return;
+    _supplierAdvanceTransfer = value;
+    if (!value) transferSupplier = null;
+    final previousFrom = paidFrom;
+    paidFrom = paidTo;
+    paidTo = previousFrom;
+    ++_invoiceRequest;
+    invoice = null;
+    invoices = [];
+    invoiceError = null;
+    loadingInvoices = false;
+    notifyListeners();
+  }
 
   Map<String, dynamic>? find(List<Map<String, dynamic>> rows, String? name) =>
       rows.where((row) => row['name'] == name).firstOrNull;
+
+  Future<List<Map<String, dynamic>>> searchSuppliers(String query) async {
+    final rows = await repository.suppliers(query: query);
+    if (!isDisposed) {
+      final byName = {for (final row in suppliers) row['name']: row};
+      for (final row in rows) {
+        byName[row['name']] = row;
+      }
+      suppliers = byName.values.toList();
+    }
+    return rows;
+  }
+
   String get companyCurrency =>
       '${find(companies, company)?['default_currency'] ?? ''}';
   String get fromCurrency =>
       '${find(accounts, paidFrom)?['account_currency'] ?? companyCurrency}';
   String get toCurrency =>
       '${find(accounts, paidTo)?['account_currency'] ?? companyCurrency}';
-  bool get bankPayment => find(accounts, paidFrom)?['account_type'] == 'Bank';
-  List<Map<String, dynamic>> get sourceAccounts => accounts
+  bool get bankPayment =>
+      find(
+        accounts,
+        supplierAdvanceTransfer ? paidTo : paidFrom,
+      )?['account_type'] ==
+      'Bank';
+  List<Map<String, dynamic>> get sourceAccounts =>
+      supplierAdvanceTransfer ? _partyAccounts : _bankAccounts;
+  List<Map<String, dynamic>> get destinationAccounts =>
+      supplierAdvanceTransfer ? _bankAccounts : _partyAccounts;
+  List<Map<String, dynamic>> get _bankAccounts => accounts
       .where((row) => ['Bank', 'Cash'].contains(row['account_type']))
       .toList();
-  List<Map<String, dynamic>> get partyAccounts => accounts
+  List<Map<String, dynamic>> get partyAccounts => _partyAccounts;
+  List<Map<String, dynamic>> get _partyAccounts => accounts
       .where((row) => ['Payable', 'Receivable'].contains(row['account_type']))
       .toList();
   String _message(Object e) => e is AppException
       ? e.message
       : 'Unable to load payment options. Please retry.';
+
+  void selectDefaultAccounts() {
+    final currencyAccounts = accounts
+        .where((row) => row['account_currency'] == companyCurrency)
+        .toList();
+    final modeType = find(modes, mode)?['type'];
+    final bankAccounts = currencyAccounts
+        .where((row) => ['Bank', 'Cash'].contains(row['account_type']))
+        .toList();
+    final bank =
+        bankAccounts
+            .where((row) => row['account_type'] == modeType)
+            .firstOrNull ??
+        bankAccounts.firstOrNull;
+    final party =
+        currencyAccounts
+            .where((row) => row['account_type'] == 'Payable')
+            .firstOrNull ??
+        currencyAccounts
+            .where((row) => row['account_type'] == 'Receivable')
+            .firstOrNull;
+    paidFrom = (supplierAdvanceTransfer ? party : bank)?['name'] as String?;
+    paidTo = (supplierAdvanceTransfer ? bank : party)?['name'] as String?;
+    accountError = bank == null || party == null
+        ? 'No bank/cash and supplier accounts are available in the company currency.'
+        : null;
+  }
 
   Future<void> initialize() async {
     if (loading || isDisposed) return;
@@ -52,6 +120,9 @@ class SupplierPaymentViewModel extends DiagnosticNotifier {
       companies = rows[0];
       suppliers = rows[1];
       modes = rows[2];
+      if (companies.isNotEmpty) {
+        await selectCompany('${companies.first['name']}');
+      }
     } catch (e) {
       if (!isDisposed) error = _message(e);
     } finally {
@@ -81,6 +152,7 @@ class SupplierPaymentViewModel extends DiagnosticNotifier {
       final rows = await repository.accounts(value);
       if (isDisposed || request != _accountRequest) return;
       accounts = rows;
+      selectDefaultAccounts();
     } catch (e) {
       if (!isDisposed && request == _accountRequest) accountError = _message(e);
     } finally {
@@ -96,7 +168,11 @@ class SupplierPaymentViewModel extends DiagnosticNotifier {
     invoice = null;
     invoices = [];
     invoiceError = null;
-    loadingInvoices = company != null && supplier != null && paidTo != null;
+    loadingInvoices =
+        !supplierAdvanceTransfer &&
+        company != null &&
+        supplier != null &&
+        paidTo != null;
     notifyListeners();
     if (!loadingInvoices) return;
     try {
@@ -135,8 +211,13 @@ class SupplierPaymentViewModel extends DiagnosticNotifier {
         find(suppliers, supplier) == null ||
         find(modes, mode) == null ||
         !sourceAccounts.any((row) => row['name'] == paidFrom) ||
-        !partyAccounts.any((row) => row['name'] == paidTo)) {
+        !destinationAccounts.any((row) => row['name'] == paidTo)) {
       error = 'Select the company, supplier, payment mode and both accounts.';
+    } else if (supplierAdvanceTransfer &&
+        find(suppliers, transferSupplier) == null) {
+      error = 'Select the supplier whose advance will be deducted.';
+    } else if (supplierAdvanceTransfer && transferSupplier == supplier) {
+      error = 'Source supplier and receiving party must be different.';
     } else if (paidFrom == paidTo ||
         [
           amount,
@@ -179,9 +260,16 @@ class SupplierPaymentViewModel extends DiagnosticNotifier {
     notifyListeners();
     try {
       return await repository.create({
-        'payment_type': 'Pay',
+        'payment_type': paymentType,
         'party_type': 'Supplier',
         'party': supplier,
+        'custom_supplier_advance_transfer': supplierAdvanceTransfer ? 1 : 0,
+        if (supplierAdvanceTransfer) ...{
+          'custom_supplier': transferSupplier,
+          'custom_supplier_name':
+              find(suppliers, transferSupplier)?['supplier_name'] ??
+              transferSupplier,
+        },
         'company': company,
         'posting_date': date,
         'mode_of_payment': mode,

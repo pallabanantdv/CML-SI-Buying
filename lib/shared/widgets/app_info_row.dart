@@ -16,9 +16,12 @@ class AppInfoRow extends StatelessWidget {
     builder: (context, constraints) {
       final theme = Theme.of(context);
       final labelWidget = Text(label, style: theme.textTheme.bodySmall);
+      final valueText = Text(value, style: theme.textTheme.bodyMedium);
+      // Read-only values do not need SelectableText's globally keyed
+      // EditableText subtree, which can be reparented during section toggles.
       final valueWidget = selectable
-          ? SelectableText(value, style: theme.textTheme.bodyMedium)
-          : Text(value, style: theme.textTheme.bodyMedium);
+          ? SelectionArea(child: valueText)
+          : valueText;
       if (constraints.maxWidth < 240 ||
           MediaQuery.textScalerOf(context).scale(14) > 21) {
         return Column(

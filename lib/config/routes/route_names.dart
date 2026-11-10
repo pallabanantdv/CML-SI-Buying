@@ -12,6 +12,7 @@ abstract final class RouteNames {
   static const paymentEntryDetails = 'payment-entry-details';
   static const supplierDetails = 'supplier-details';
   static const htmlPrintPreview = 'html-print-preview';
+  static const invoiceHtmlPrintPreview = 'invoice-html-print-preview';
   static const profile = 'profile';
   static const settings = 'settings';
   static const designSystem = 'design-system';

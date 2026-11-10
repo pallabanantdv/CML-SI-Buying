@@ -30,6 +30,7 @@ import '../../core/navigation/app_page_transitions.dart';
 import '../../core/navigation/app_transition_config.dart';
 import '../../core/models/html_print_document.dart';
 import '../../core/widgets/html_print_preview_screen.dart';
+import '../../core/widgets/invoice_html_print_preview_screen.dart';
 import '../../shared/widgets/app_error_widget.dart';
 
 GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
@@ -56,13 +57,33 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
   },
   routes: [
     GoRoute(
+      path: '/invoice-html-print-preview',
+      name: RouteNames.invoiceHtmlPrintPreview,
+      builder: (context, state) {
+        final document = state.extra;
+        if (document is! HtmlPrintDocument) {
+          return const AppErrorWidget(
+            message: 'Reopen the invoice from purchase details.',
+          );
+        }
+        return InvoiceHtmlPrintPreviewScreen(
+          htmlContent: document.html,
+          title: document.title,
+          baseUrl: document.baseUrl,
+          documentId: document.documentId,
+          cookies: document.cookies,
+          loadPdf: document.loadPdf,
+        );
+      },
+    ),
+    GoRoute(
       path: '/html-print-preview',
       name: RouteNames.htmlPrintPreview,
       builder: (context, state) {
         final document = state.extra;
         if (document is! HtmlPrintDocument) {
           return const AppErrorWidget(
-            message: 'Reopen the print preview from supplier details.',
+            message: 'Reopen the print preview from the document details.',
           );
         }
         return HtmlPrintPreviewScreen(

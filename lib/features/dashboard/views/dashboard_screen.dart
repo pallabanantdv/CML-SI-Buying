@@ -36,40 +36,28 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   DateTimeRange? _purchaseDateRange;
 
+  DateTimeRange? _responseDateRange() {
+    final summary = context.read<DashboardViewModel>().data?.invoiceSummary;
+    final from = DateTime.tryParse(summary?.fromDate ?? '');
+    final to = DateTime.tryParse(summary?.toDate ?? '');
+    return from != null && to != null && !from.isAfter(to)
+        ? DateTimeRange(start: from, end: to)
+        : null;
+  }
+
   Future<void> _selectPurchaseDateRange() async {
     final range = await showDateRangePicker(
       context: context,
-      initialDateRange: _purchaseDateRange,
+      initialDateRange: _purchaseDateRange ?? _responseDateRange(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100, 12, 31),
     );
     if (!mounted || range == null) return;
-    setState(() => _purchaseDateRange = range);
-  }
-
-  DashboardData _purchaseTotalData(DashboardData data) {
-    final range = _purchaseDateRange;
-    if (range == null) return data;
-    final endExclusive = DateTime(
-      range.end.year,
-      range.end.month,
-      range.end.day + 1,
+    await context.read<DashboardViewModel>().setDateRange(
+      range.start,
+      range.end,
     );
-    final dates = MaterialLocalizations.of(context);
-    return DashboardData(
-      periodLabel:
-          '${dates.formatShortDate(range.start)} – ${dates.formatShortDate(range.end)}',
-      currencySymbol: data.currencySymbol,
-      isDemo: data.isDemo,
-      products: data.products,
-      purchases: data.purchases
-          .where(
-            (purchase) =>
-                !purchase.date.isBefore(range.start) &&
-                purchase.date.isBefore(endExclusive),
-          )
-          .toList(),
-    );
+    if (mounted) setState(() => _purchaseDateRange = range);
   }
 
   @override
@@ -152,15 +140,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           title: 'No purchases in this period',
                           description:
                               'Pull down to refresh the purchase overview.',
-                        )
-                      else
-                        SkeletonReveal(
-                          loading: false,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: _overview(context, vm.data!),
-                          ),
                         ),
+                      if (vm.isLoading) const LinearProgressIndicator(),
+                      SkeletonReveal(
+                        loading: false,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: _overview(context, vm.data!),
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 12),
                     Text(
@@ -197,11 +185,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<Widget> _overview(BuildContext context, DashboardData data) => [
+    if (data.invoiceSummary?.currencyWarning case final String warning)
+      Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(warning)),
     DashboardSummaryCard(
-      data: _purchaseTotalData(data),
+      data: data,
       dateRange: _purchaseDateRange,
-      onSelectDateRange: _selectPurchaseDateRange,
-      onClearDateRange: () => setState(() => _purchaseDateRange = null),
+      onSelectDateRange: context.read<DashboardViewModel>().isLoading
+          ? null
+          : _selectPurchaseDateRange,
+      onClearDateRange: () async {
+        await context.read<DashboardViewModel>().setDateRange(null, null);
+        if (mounted) setState(() => _purchaseDateRange = null);
+      },
     ),
     const SizedBox(height: 8),
     // _ResponsivePair(
@@ -239,22 +234,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const SizedBox(height: 8),
     AppCard(
       title: 'Invoice overview',
-      subtitle: 'Sample invoice details',
+      subtitle: data.periodLabel,
       child: _ResponsivePair(
-        children: const [
+        children: [
           DashboardKpiCard(
             label: 'Total invoices',
-            value: 12,
+            value: data.summary.transactionCount,
             icon: AppIconName.purchase,
           ),
           DashboardKpiCard(
             label: 'Paid invoices',
-            value: 8,
+            value: data.invoiceSummary?.paidCount ?? 0,
             icon: AppIconName.success,
           ),
           DashboardKpiCard(
             label: 'Unpaid invoices',
-            value: 4,
+            value: data.invoiceSummary?.unpaidCount ?? 0,
+            icon: AppIconName.purchase,
+          ),
+          DashboardKpiCard(
+            label: 'Partly paid invoices',
+            value: data.invoiceSummary?.partlyPaidCount ?? 0,
             icon: AppIconName.purchase,
           ),
         ],
@@ -262,7 +262,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
 
     const SizedBox(height: 12),
-    const DashboardPurchaseChart(),
+    DashboardPurchaseChart(summary: data.invoiceSummary),
     const SizedBox(height: 12),
     const DashboardRevenueChart(),
     const SizedBox(height: 12),

@@ -21,7 +21,7 @@ class DashboardSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) => AppCard(
     tone: AppCardTone.primary,
     title: 'Total purchase value',
-    subtitle: dateRange == null ? 'All dates' : data.periodLabel,
+    subtitle: data.periodLabel,
     leading: const AppSvgIcon(icon: AppIconName.purchase),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -35,12 +35,12 @@ class DashboardSummaryCard extends StatelessWidget {
                 suffixIcon: dateRange == null
                     ? const Icon(Icons.date_range_outlined)
                     : IconButton(
-                        tooltip: 'Show all dates',
+                        tooltip: 'Reset date range',
                         onPressed: onClearDateRange,
                         icon: const Icon(Icons.clear),
                       ),
               ),
-              child: Text(dateRange == null ? 'All dates' : data.periodLabel),
+              child: Text(data.periodLabel),
             ),
           ),
           const SizedBox(height: 16),

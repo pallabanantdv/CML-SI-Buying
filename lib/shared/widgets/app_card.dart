@@ -102,6 +102,7 @@ class AppCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w700,
+                              fontSize: 14,
                               color: scheme.onSurface,
                             ),
                           ),

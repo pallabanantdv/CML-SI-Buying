@@ -14,6 +14,7 @@ import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/skeleton/skeleton.dart';
 import '../viewmodels/supplier_viewmodel.dart';
+import 'create_supplier_screen.dart';
 
 class SupplierDetailsScreen extends StatefulWidget {
   const SupplierDetailsScreen({super.key, required this.supplierId});
@@ -77,7 +78,40 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: const AppAppBar(title: AppHeaderTitle(title: 'Supplier details')),
+    appBar: AppAppBar(
+      title: const AppHeaderTitle(title: 'Supplier details'),
+      actions: [
+        Consumer<SupplierViewModel>(
+          builder: (context, vm, _) => TextButton.icon(
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Edit'),
+            onPressed:
+                vm.isLoadingDetail ||
+                    vm.selectedSupplierId != widget.supplierId ||
+                    vm.selectedSupplier == null
+                ? null
+                : () async {
+                    final saved = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(
+                        builder: (_) => ChangeNotifierProvider.value(
+                          value: vm,
+                          child: CreateSupplierScreen(
+                            supplier: Map<String, dynamic>.from(
+                              vm.selectedSupplier!,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                    if (saved == true && mounted) {
+                      await vm.loadSupplier(widget.supplierId);
+                      if (mounted) await _loadPreview();
+                    }
+                  },
+          ),
+        ),
+      ],
+    ),
     body: SafeArea(
       top: false,
       child: Consumer<SupplierViewModel>(
@@ -149,7 +183,11 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
                             for (final group in _groups.entries)
                               if (group.value.any(record.containsKey)) ...[
                                 const SizedBox(height: 16),
-                                AppCard(
+                                AppExpandableSection(
+                                  initiallyExpanded: true,
+                                  key: ValueKey(
+                                    '${widget.supplierId}-${group.key}',
+                                  ),
                                   title: group.key,
                                   child: _fields({
                                     for (final key in group.value)

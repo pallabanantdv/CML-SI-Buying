@@ -16,27 +16,37 @@ class FrappeResourceApi {
   Uri get serverUri => _client.serverUri;
   Future<Map<String, String>> printCookies() => _client.printCookies();
 
-  Future<String> getPrintHtml(String doctype, String name, String format) =>
-      _client.getHtml('/printview', {
-        'doctype': doctype,
-        'name': name,
-        'format': format,
-        'no_letterhead': 1,
-      });
+  Future<String> getPrintHtml(
+    String doctype,
+    String name,
+    String format, {
+    String? language,
+  }) => _client.getHtml('/printview', {
+    'doctype': doctype,
+    'name': name,
+    'format': format,
+    'no_letterhead': 1,
+    '_lang': ?language,
+  });
 
   Future<String> uploadImage(Uint8List bytes, String filename) =>
       _client.uploadImage(bytes, filename);
 
-  Future<Uint8List> getPrintPdf(String doctype, String name, String format) =>
-      _client.getPdf(
-        '/api/method/frappe.utils.print_format.download_pdf',
-        queryParameters: {
-          'doctype': doctype,
-          'name': name,
-          'format': format,
-          'no_letterhead': 1,
-        },
-      );
+  Future<Uint8List> getPrintPdf(
+    String doctype,
+    String name,
+    String format, {
+    String? language,
+  }) => _client.getPdf(
+    '/api/method/frappe.utils.print_format.download_pdf',
+    queryParameters: {
+      'doctype': doctype,
+      'name': name,
+      'format': format,
+      'no_letterhead': 1,
+      '_lang': ?language,
+    },
+  );
 
   Future<List<Map<String, dynamic>>> getDocList(
     String doctype, {
@@ -46,6 +56,7 @@ class FrappeResourceApi {
     String? orderBy,
     int? limitStart,
     int? limitPageLength,
+    bool optionalPermission = false,
   }) async {
     final query = <String, dynamic>{};
     if (fields != null) query['fields'] = jsonEncode(fields);
@@ -57,6 +68,7 @@ class FrappeResourceApi {
     final body = await _client.get(
       '${ApiEndpoints.resource}/${_segment(doctype)}',
       queryParameters: query,
+      optionalPermission: optionalPermission,
     );
     final data = _data(body);
     if (data is! List) {

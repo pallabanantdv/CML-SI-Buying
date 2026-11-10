@@ -9,6 +9,7 @@ import 'package:cml_si_buying/config/theme/app_theme.dart';
 import 'package:cml_si_buying/core/errors/app_exception.dart';
 import 'package:cml_si_buying/core/models/html_print_document.dart';
 import 'package:cml_si_buying/core/widgets/html_print_preview_screen.dart';
+import 'package:cml_si_buying/core/widgets/invoice_html_print_preview_screen.dart';
 import 'package:cml_si_buying/core/network/api_client.dart';
 import 'package:cml_si_buying/core/network/dio_client.dart';
 import 'package:cml_si_buying/core/network/frappe_resource_api.dart';
@@ -47,6 +48,28 @@ class PrintRepository extends SupplierRepository {
 }
 
 void main() {
+  test(
+    'page preview fits desktop invoice layout with zoom and hides ERP controls',
+    () {
+      final result = InvoiceHtmlPrintPreviewScreen.prepareHtml(
+        '<html><head><meta name="viewport" content="width=device-width, maximum-scale=1">'
+        '<style>.invoice{width:800px}</style></head>'
+        '<body><div class="print-toolbar">Print Get PDF</div>'
+        '<div class="print-format"><div class="invoice">Invoice</div></div></body></html>',
+      );
+      expect(RegExp('name="viewport"').allMatches(result).length, 1);
+      expect(result, contains('width=980, user-scalable=yes'));
+      expect(result, isNot(contains('maximum-scale=1')));
+      expect(
+        result,
+        contains(
+          '.print-toolbar,.action-banner,.page-head,.printview-header{display:none!important;}',
+        ),
+      );
+      expect(result, contains('.invoice{width:800px}'));
+      expect(result, contains('<div class="invoice">Invoice</div>'));
+    },
+  );
   test('extracts raw HTML and both Frappe wrappers while preserving styles and relative assets', () {
     for (final response in [
       html,

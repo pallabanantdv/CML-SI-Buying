@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/diagnostics/app_diagnostics.dart';
+import '../../../core/errors/app_exception.dart';
 
 import '../../../config/theme/app_colors.dart';
 import '../../../core/utils/number_format.dart';
@@ -37,6 +38,48 @@ class PointOfPurchaseDetailScreen extends StatefulWidget {
 
 class _PointOfPurchaseDetailScreenState
     extends State<PointOfPurchaseDetailScreen> {
+  bool _loadingInvoice = false;
+
+  Future<void> _viewInvoice(PointOfPurchaseViewModel vm) async {
+    if (_loadingInvoice) return;
+    final name = widget.documentName;
+    setState(() => _loadingInvoice = true);
+    try {
+      final document = await vm.loadInvoicePreview(name);
+      if (!mounted || name != widget.documentName) return;
+      await context.pushNamedOnce(
+        RouteNames.invoiceHtmlPrintPreview,
+        extra: document,
+      );
+    } catch (error) {
+      if (!mounted || name != widget.documentName) return;
+      AppSnackbar.show(
+        context,
+        error is AppException
+            ? error.message
+            : 'Unable to load the invoice. Please retry.',
+        type: AppMessageType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _loadingInvoice = false);
+    }
+  }
+
+  PreferredSizeWidget _invoiceAction(PointOfPurchaseViewModel vm) =>
+      PreferredSize(
+        preferredSize: const Size.fromHeight(64),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: AppButton(
+            label: 'View invoice',
+            isLoading: _loadingInvoice,
+            onPressed:
+                _loadingInvoice || vm.isLoadingDetail || vm.isRefreshingDetail
+                ? null
+                : () => _viewInvoice(vm),
+          ),
+        ),
+      );
   @override
   void initState() {
     super.initState();
@@ -70,6 +113,9 @@ class _PointOfPurchaseDetailScreenState
             viewModel.selectedName == widget.documentName &&
                 int.tryParse('${viewModel.selectedRecord?['docstatus']}') == 0
             ? _headerActions(viewModel)
+            : viewModel.selectedName == widget.documentName &&
+                  int.tryParse('${viewModel.selectedRecord?['docstatus']}') == 1
+            ? _invoiceAction(viewModel)
             : null,
       ),
       body: SafeArea(
@@ -130,7 +176,7 @@ class _PointOfPurchaseDetailScreenState
                 const SizedBox(width: 8),
                 Expanded(
                   child: AppButton(
-                    label: 'Save',
+                    label: 'Submit',
                     isLoading: vm.isSubmitting,
                     onPressed: busy || vm.isRefreshingDetail
                         ? null
