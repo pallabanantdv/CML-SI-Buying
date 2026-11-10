@@ -4,7 +4,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
         android:networkSecurityConfig="@xml/network_security_config"
-        android:label="CML SI Buying"
+        android:label="CMAL BI Buying"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -57,6 +57,25 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
   },
   routes: [
     GoRoute(
+      path: '/pop-print-preview',
+      name: RouteNames.popPrintPreview,
+      builder: (context, state) {
+        final document = state.extra;
+        if (document is! HtmlPrintDocument) {
+          return const AppErrorWidget(
+            message: 'Reopen the POP template from purchase details.',
+          );
+        }
+        return InvoiceHtmlPrintPreviewScreen(
+          htmlContent: document.html,
+          title: document.title,
+          documentId: document.documentId,
+          loadPdf: document.loadPdf,
+          allowDownload: true,
+        );
+      },
+    ),
+    GoRoute(
       path: '/invoice-html-print-preview',
       name: RouteNames.invoiceHtmlPrintPreview,
       builder: (context, state) {

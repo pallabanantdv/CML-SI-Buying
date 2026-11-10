@@ -138,15 +138,18 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
   bool _pickingImage = false;
   String? _existingImage;
 
-  Future<void> _pickImage({bool fromGallery = true}) async {
+  Future<void> _pickImage({
+    bool fromGallery = true,
+    bool camera = false,
+  }) async {
     if (_pickingImage || context.read<SupplierViewModel>().isSaving) return;
     setState(() => _pickingImage = true);
     try {
       final Uint8List bytes;
       final String filename;
-      if (fromGallery) {
+      if (fromGallery || camera) {
         final image = await ImagePicker().pickImage(
-          source: ImageSource.gallery,
+          source: camera ? ImageSource.camera : ImageSource.gallery,
           requestFullMetadata: false,
         );
         if (!mounted || image == null) return;
@@ -300,78 +303,82 @@ class _CreateSupplierScreenState extends State<CreateSupplierScreen> {
                   builder: (context, vm, _) => AppCard(
                     title: 'Profile picture',
                     subtitle: 'Optional · JPG, PNG or WebP · Up to 5 MB',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        if (_imageBytes != null) ...[
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.memory(
-                              _imageBytes!,
-                              height: 160,
-                              fit: BoxFit.contain,
-                              cacheWidth: 480,
-                              semanticLabel: 'Selected supplier image',
-                            ),
+                        ClipOval(
+                          child: SizedBox.square(
+                            dimension: 64,
+                            child: _imageBytes != null
+                                ? Image.memory(
+                                    _imageBytes!,
+                                    fit: BoxFit.cover,
+                                    cacheWidth: 192,
+                                    semanticLabel: 'Selected supplier image',
+                                  )
+                                : _existingImage?.isNotEmpty == true
+                                ? Image.network(
+                                    vm.repository.printServerUri
+                                        .resolve(_existingImage!)
+                                        .toString(),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => const Icon(
+                                      Icons.person_outline,
+                                      size: 32,
+                                    ),
+                                  )
+                                : ColoredBox(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest,
+                                    child: const Icon(
+                                      Icons.person_outline,
+                                      size: 32,
+                                    ),
+                                  ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(_imageFilename!, textAlign: TextAlign.center),
-                        ] else if (_existingImage?.isNotEmpty == true)
-                          Image.network(
-                            vm.repository.printServerUri
-                                .resolve(_existingImage!)
-                                .toString(),
-                            height: 160,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, _, _) => const Text(
-                              'Current supplier image unavailable. Choose a replacement below.',
-                            ),
-                          )
-                        else
-                          const Padding(
-                            padding: EdgeInsets.all(20),
-                            child: Icon(
-                              Icons.add_photo_alternate_outlined,
-                              size: 48,
-                            ),
-                          ),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 8,
-                          children: [
-                            TextButton.icon(
-                              onPressed: vm.isSaving || _pickingImage
-                                  ? null
-                                  : _pickImage,
-                              icon: const Icon(Icons.upload_outlined),
-                              label: Text(
-                                _pickingImage
-                                    ? 'Opening...'
-                                    : _imageBytes == null
-                                    ? 'Choose from gallery'
-                                    : 'Change from gallery',
-                              ),
-                            ),
-                            TextButton.icon(
-                              onPressed: vm.isSaving || _pickingImage
-                                  ? null
-                                  : () => _pickImage(fromGallery: false),
-                              icon: const Icon(Icons.folder_open_outlined),
-                              label: const Text('Choose file'),
-                            ),
-                            if (_imageBytes != null ||
-                                _existingImage?.isNotEmpty == true)
-                              TextButton(
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Wrap(
+                            spacing: 4,
+                            children: [
+                              TextButton.icon(
                                 onPressed: vm.isSaving || _pickingImage
                                     ? null
-                                    : () => setState(() {
-                                        _imageBytes = null;
-                                        _imageFilename = null;
-                                        _existingImage = '';
-                                      }),
-                                child: const Text('Remove'),
+                                    : () => _pickImage(camera: true),
+                                icon: const Icon(
+                                  Icons.camera_alt_outlined,
+                                  size: 18,
+                                ),
+                                label: const Text('Camera'),
                               ),
-                          ],
+                              TextButton.icon(
+                                onPressed: vm.isSaving || _pickingImage
+                                    ? null
+                                    : () => _pickImage(fromGallery: false),
+                                icon: const Icon(
+                                  Icons.folder_open_outlined,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  _pickingImage ? 'Opening...' : 'Choose file',
+                                ),
+                              ),
+                              if (_imageBytes != null ||
+                                  _existingImage?.isNotEmpty == true)
+                                TextButton(
+                                  onPressed: vm.isSaving || _pickingImage
+                                      ? null
+                                      : () => setState(() {
+                                          _imageBytes = null;
+                                          _imageFilename = null;
+                                          _existingImage = '';
+                                        }),
+                                  child: const Text('Remove'),
+                                ),
+                            ],
+                          ),
                         ),
                       ],
                     ),

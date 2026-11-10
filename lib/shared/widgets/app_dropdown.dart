@@ -39,11 +39,14 @@ class AppDropdown<T> extends StatelessWidget {
         onChanged: enabled ? onChanged : null,
         validator: validator,
         isExpanded: true,
+        style: Theme.of(context).textTheme.bodyMedium,
         borderRadius: BorderRadius.circular(AppDimensions.dialogRadius),
         dropdownColor: Theme.of(context).colorScheme.surface,
         icon: const AppSvgIcon(icon: AppIconName.expandMore, size: 18),
         decoration: InputDecoration(
           labelText: label,
+          labelStyle: Theme.of(context).textTheme.labelSmall,
+          floatingLabelStyle: Theme.of(context).textTheme.labelSmall,
           errorMaxLines: 3,
           hintText: hint,
           hintStyle: Theme.of(context).textTheme.labelMedium,
@@ -92,6 +95,8 @@ class AppDropdown<T> extends StatelessWidget {
             isEmpty: selectedItem == null,
             decoration: InputDecoration(
               labelText: label,
+              labelStyle: Theme.of(context).textTheme.labelSmall,
+              floatingLabelStyle: Theme.of(context).textTheme.labelSmall,
               errorMaxLines: 3,
               hintText: hint,
               hintStyle: Theme.of(context).textTheme.labelMedium,
@@ -102,7 +107,12 @@ class AppDropdown<T> extends StatelessWidget {
                 child: AppSvgIcon(icon: AppIconName.expandMore, size: 18),
               ),
             ),
-            child: selectedItem?.child ?? const SizedBox.shrink(),
+            child: selectedItem == null
+                ? const SizedBox.shrink()
+                : DefaultTextStyle.merge(
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    child: selectedItem.child,
+                  ),
           ),
         );
       },

@@ -30,8 +30,9 @@ class AppFloatingBottomNavigation extends StatelessWidget {
         : AppTransitionConfig.bottomNavigation;
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Container(
+        color: Colors.transparent,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
         child: Material(
           color: scheme.surface,
           elevation: 5,

@@ -6,6 +6,7 @@ import '../../../core/diagnostics/diagnostic_notifier.dart';
 import '../../../core/errors/app_exception.dart';
 import '../../../core/models/html_print_document.dart';
 import '../models/point_of_purchase_model.dart';
+import '../models/purchase_detail_model.dart';
 import '../models/supplier_advance.dart';
 
 import 'package:cml_si_buying/features/point_of_purchase/repositories/point_of_purchase_repository.dart';
@@ -29,19 +30,17 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
         'No purchase invoice is linked to this purchase yet.',
       );
     }
-    final html = await repository.getInvoicePrintHtml(invoice);
-    final cookies = await repository.printCookies();
     if (isDisposed || session != _sessionId) {
       throw const AppException(
         'The account changed. Please reopen the invoice.',
       );
     }
     return HtmlPrintDocument(
-      html: HtmlPrintDocument.extractHtml(html),
+      // The invoice screen renders the PDF. Do not fetch unused HTML before
+      // navigation: let the screen open and display its skeleton immediately.
+      html: '',
       title: 'Purchase invoice',
       documentId: invoice,
-      baseUrl: repository.printServerUri.resolve('/printview'),
-      cookies: Map.unmodifiable(cookies),
       loadPdf: () {
         if (isDisposed || session != _sessionId) {
           throw const AppException(
@@ -49,6 +48,28 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
           );
         }
         return repository.getInvoicePrintPdf(invoice);
+      },
+    );
+  }
+
+  Future<HtmlPrintDocument> loadPopPreview(String purchaseName) async {
+    final session = _sessionId;
+    if (isDisposed ||
+        selectedName != purchaseName ||
+        int.tryParse('${selectedRecord?['docstatus']}') != 1) {
+      throw const AppException('Only submitted purchases can be printed.');
+    }
+    return HtmlPrintDocument(
+      html: '',
+      title: 'POP TEMPLATE',
+      documentId: purchaseName,
+      loadPdf: () {
+        if (isDisposed || session != _sessionId) {
+          throw const AppException(
+            'The account changed. Please reopen the purchase.',
+          );
+        }
+        return repository.getPopPrintPdf(purchaseName);
       },
     );
   }
@@ -123,7 +144,17 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
   }
 
   String? _errorMessage;
-  Map<String, dynamic>? _selectedRecord;
+  Map<String, dynamic>? _rawSelectedRecord;
+  PurchaseDetailModel? _selectedDetail;
+  PurchaseDetailModel? get selectedDetail => _selectedDetail;
+  Map<String, dynamic>? get _selectedRecord => _rawSelectedRecord;
+  set _selectedRecord(Map<String, dynamic>? record) {
+    _rawSelectedRecord = record;
+    _selectedDetail = record == null
+        ? null
+        : PurchaseDetailModel.fromJson(record);
+  }
+
   String? _selectedName;
   bool _isLoadingDetail = false;
   String? _detailErrorMessage;

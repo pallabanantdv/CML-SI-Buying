@@ -24,6 +24,9 @@ class PointOfPurchaseRepository {
   Future<Uint8List> getInvoicePrintPdf(String invoice) => _resourceApi
       .getPrintPdf('Purchase Invoice', invoice, 'PI', language: 'en');
 
+  Future<Uint8List> getPopPrintPdf(String name) =>
+      _resourceApi.getPrintPdf(_doctype, name, 'POP TEMPLATE', language: 'en');
+
   static const warehouseAccountFields = [
     'cash_account',
     'bank_account',
@@ -298,7 +301,11 @@ class PointOfPurchaseRepository {
           'Warehouse',
           fields: const ['name'],
           filters: const [
-            ['warehouse_type', '=', 'Shed'],
+            [
+              'warehouse_type',
+              'in',
+              ['Cocoa Shed', 'Copra Shed'],
+            ],
           ],
           orderBy: 'name asc',
           limitPageLength: 300,

@@ -24,11 +24,15 @@ class DashboardProductCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text('Unit', style: Theme.of(context).textTheme.labelSmall),
+        const SizedBox(height: 2),
         Text(
           '${AppNumberFormat.amount(quantity)} ${product.unit}',
           style: Theme.of(context).textTheme.titleSmall,
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
+        Text('Amount', style: Theme.of(context).textTheme.labelSmall),
+        const SizedBox(height: 2),
         Text(
           '$currencySymbol${AppNumberFormat.amount(amount)}',
           style: Theme.of(context).textTheme.bodyMedium

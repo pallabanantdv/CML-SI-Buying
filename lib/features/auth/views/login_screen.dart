@@ -58,7 +58,7 @@ class LoginScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: AppSpacing.standard),
                         Text(
-                          'CAML SI Buying',
+                          'CMAL BI Buying',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.titleLarge,
                         ),

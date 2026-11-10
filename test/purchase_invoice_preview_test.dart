@@ -50,13 +50,13 @@ void main() {
   });
   tearDown(() => vm.dispose());
 
-  test('submitted purchase previews its linked invoice with PI and English for HTML and PDF', () async {
+  test('opens immediately without HTML requests and fetches only the PI PDF in English', () async {
     await vm.loadPointOfPurchase('POP/1');
     final document = await vm.loadInvoicePreview('POP/1');
     expect(document.documentId, 'PINV/1');
-    expect(document.html, contains('Purchase invoice'));
-    expect(requests.single.path, '/printview');
+    expect(requests, isEmpty);
     await document.loadPdf!();
+    expect(requests.length, 1);
     expect(
       requests.last.path,
       '/api/method/frappe.utils.print_format.download_pdf',
@@ -94,11 +94,55 @@ void main() {
     },
   );
 
+  test(
+    'POP uses the purchase document and POP TEMPLATE without a linked invoice',
+    () async {
+      repository.invoice = null;
+      await vm.loadPointOfPurchase('POP/1');
+      final document = await vm.loadPopPreview('POP/1');
+      expect(document.title, 'POP TEMPLATE');
+      expect(document.documentId, 'POP/1');
+      expect(requests, isEmpty);
+      await document.loadPdf!();
+      expect(requests.single.queryParameters, {
+        'doctype': 'Supplier Point Of Purchase',
+        'name': 'POP/1',
+        'format': 'POP TEMPLATE',
+        '_lang': 'en',
+        'no_letterhead': 1,
+      });
+    },
+  );
+
+  test(
+    'POP rejects drafts, cancelled purchases and a different selected purchase',
+    () async {
+      for (final status in [0, 2]) {
+        repository.status = status;
+        await vm.loadPointOfPurchase('POP/1');
+        await expectLater(
+          vm.loadPopPreview('POP/1'),
+          throwsA(isA<AppException>()),
+        );
+      }
+      repository.status = 1;
+      await vm.loadPointOfPurchase('POP/1');
+      await expectLater(
+        vm.loadPopPreview('POP/2'),
+        throwsA(isA<AppException>()),
+      );
+      final document = await vm.loadPopPreview('POP/1');
+      vm.resetSession();
+      expect(() => document.loadPdf!(), throwsA(isA<AppException>()));
+      expect(requests, isEmpty);
+    },
+  );
+
   test('PDF callback cannot fetch after the account changes', () async {
     await vm.loadPointOfPurchase('POP/1');
     final document = await vm.loadInvoicePreview('POP/1');
     vm.resetSession();
     expect(() => document.loadPdf!(), throwsA(isA<AppException>()));
-    expect(requests.length, 1);
+    expect(requests, isEmpty);
   });
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
@@ -21,6 +22,7 @@ class InvoiceHtmlPrintPreviewScreen extends StatefulWidget {
     this.cookies = const {},
     this.loadPdf,
     this.embedded = false,
+    this.allowDownload = false,
   });
 
   /// Preserve the invoice's desktop print layout and let WebView fit it to
@@ -46,6 +48,7 @@ class InvoiceHtmlPrintPreviewScreen extends StatefulWidget {
     );
   }
 
+  final bool allowDownload;
   final bool embedded;
   final String htmlContent;
   final String title;
@@ -70,6 +73,7 @@ class _InvoiceHtmlPrintPreviewScreenState
   int _generation = 0;
   Uint8List? _pdf;
   Future<Uint8List>? _pdfRequest;
+  final _zoomController = TransformationController();
   bool get _usePdf => widget.loadPdf != null;
 
   Future<Uint8List> _loadPdf() => _pdfRequest ??= () async {
@@ -213,6 +217,7 @@ class _InvoiceHtmlPrintPreviewScreenState
       _progress = 0;
       _pdf = null;
       _pdfRequest = null;
+      _zoomController.value = Matrix4.identity();
     });
     unawaited(_initialize());
   }
@@ -248,6 +253,42 @@ class _InvoiceHtmlPrintPreviewScreenState
     }
   }
 
+  Future<void> _download() async {
+    if (_exporting || widget.loadPdf == null) return;
+    setState(() => _exporting = true);
+    try {
+      final bytes = _pdf ?? await _loadPdf();
+      if (!mounted) return;
+      final name = (widget.documentId ?? 'document').replaceAll(
+        RegExp(r'[^\w-]'),
+        '_',
+      );
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'Download PDF',
+        fileName: '$name.pdf',
+        mimeType: 'application/pdf',
+        bytes: bytes,
+      );
+      if (mounted && path != null) {
+        AppSnackbar.show(
+          context,
+          'PDF downloaded successfully',
+          type: AppMessageType.success,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        AppSnackbar.show(
+          context,
+          'Unable to download PDF: $error',
+          type: AppMessageType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   void dispose() {
     ++_generation;
@@ -255,6 +296,7 @@ class _InvoiceHtmlPrintPreviewScreenState
     // WebViewWidget owns the native platform-view lifecycle. Async callbacks
     // are invalidated above; the controller does not provide dispose().
     _controller = null;
+    _zoomController.dispose();
     super.dispose();
   }
 
@@ -281,10 +323,18 @@ class _InvoiceHtmlPrintPreviewScreenState
                   icon: const Icon(Icons.print_outlined),
                 ),
                 IconButton(
-                  tooltip: 'Save or share PDF',
+                  tooltip: widget.allowDownload
+                      ? 'Share PDF'
+                      : 'Save or share PDF',
                   onPressed: _exporting ? null : () => _export(true),
                   icon: const Icon(Icons.ios_share),
                 ),
+                if (widget.allowDownload)
+                  IconButton(
+                    tooltip: 'Download PDF',
+                    onPressed: _exporting ? null : _download,
+                    icon: const Icon(Icons.download_outlined),
+                  ),
               ],
             ],
           ),
@@ -301,10 +351,15 @@ class _InvoiceHtmlPrintPreviewScreenState
                     child: Text(widget.documentId!),
                   ),
                 if (_exporting) const LinearProgressIndicator(),
+                if (_usePdf)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text('Pinch to zoom • Double-tap to zoom or reset'),
+                  ),
 
                 Expanded(
                   child: _usePdf
-                      ? PdfPreview(
+                      ? PdfPreview.builder(
                           key: ValueKey(_generation),
                           build: (_) => _loadPdf(),
                           useActions: false,
@@ -312,8 +367,39 @@ class _InvoiceHtmlPrintPreviewScreenState
                           canChangeOrientation: false,
                           canDebug: false,
                           dynamicLayout: false,
+                          pagesBuilder: (context, pages) => GestureDetector(
+                            onDoubleTap: () {
+                              final zoomed =
+                                  _zoomController.value.getMaxScaleOnAxis() > 1;
+                              _zoomController.value = zoomed
+                                  ? Matrix4.identity()
+                                  : Matrix4.diagonal3Values(2.5, 2.5, 1);
+                            },
+                            child: InteractiveViewer(
+                              transformationController: _zoomController,
+                              minScale: 1,
+                              maxScale: 5,
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(8),
+                                child: Column(
+                                  children: [
+                                    for (final page in pages)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 12,
+                                        ),
+                                        child: Image(
+                                          image: page.image,
+                                          width: double.infinity,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                           loadingWidget: const SkeletonShimmer(
-                            label: 'Loading invoice preview...',
+                            label: 'Loading document preview...',
                             child: Padding(
                               padding: EdgeInsets.all(24),
                               child: SkeletonInfoRows(count: 8),
@@ -323,7 +409,7 @@ class _InvoiceHtmlPrintPreviewScreenState
                           previewPageMargin: const EdgeInsets.only(bottom: 12),
                           onError: (context, error) => AppErrorWidget(
                             message:
-                                'Unable to display the invoice. Please retry.',
+                                'Unable to display the document. Please retry.',
                             onRetry: _refresh,
                           ),
                         )

@@ -2,6 +2,7 @@ import 'dashboard_product_model.dart';
 import 'dashboard_purchase_model.dart';
 import 'dashboard_summary_model.dart';
 import 'purchase_invoice_summary.dart';
+import 'revenue_summary.dart';
 
 class DashboardData {
   DashboardData({
@@ -11,20 +12,26 @@ class DashboardData {
     required List<DashboardProductModel> products,
     required List<DashboardPurchaseModel> purchases,
     this.invoiceSummary,
+    this.revenue,
   }) : products = List.unmodifiable(products),
        purchases = List.unmodifiable(purchases);
   final String periodLabel;
   final String currencySymbol;
   final bool isDemo;
   final PurchaseInvoiceSummary? invoiceSummary;
+  final RevenueSummary? revenue;
 
-  factory DashboardData.fromInvoiceSummary(Map<String, dynamic> json) {
+  factory DashboardData.fromInvoiceSummary(
+    Map<String, dynamic> json, {
+    RevenueSummary? revenue,
+  }) {
     final summary = PurchaseInvoiceSummary.fromJson(json);
     return DashboardData(
       periodLabel: '${summary.fromDate} – ${summary.toDate}',
       currencySymbol: '${summary.currency} ',
       isDemo: false,
       invoiceSummary: summary,
+      revenue: revenue,
       products: [
         for (final item in const [
           ('RAW-001', 'COCOA BEAN'),

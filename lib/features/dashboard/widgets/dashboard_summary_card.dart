@@ -48,7 +48,7 @@ class DashboardSummaryCard extends StatelessWidget {
         Text(
           '${data.currencySymbol}${AppNumberFormat.amount(data.summary.totalValue)}',
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            fontSize: 24,
+            fontSize: 14,
             color: Theme.of(context).colorScheme.primary,
           ),
         ),

@@ -72,7 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final name = context.watch<AuthViewModel>().user?.fullName?.trim();
     return Scaffold(
-      appBar: const AppAppBar(title: AppHeaderTitle(title: 'CAML SI Buying')),
+      appBar: const AppAppBar(title: AppHeaderTitle(title: 'CMAL BI Buying')),
       body: SafeArea(
         top: false,
         child: Center(
@@ -172,6 +172,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           onPressed: () =>
                               context.goNamed(RouteNames.addSupplier),
                         ),
+                        AppButton(
+                          label: 'Payment entry',
+                          icon: AppIconName.add,
+                          variant: AppButtonVariant.outlined,
+                          onPressed: () => context.pushNamedOnce(
+                            RouteNames.createPaymentEntry,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -234,7 +242,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const SizedBox(height: 8),
     AppCard(
       title: 'Invoice overview',
-      subtitle: data.periodLabel,
+      // subtitle: data.periodLabel,
       child: _ResponsivePair(
         children: [
           DashboardKpiCard(
@@ -264,7 +272,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const SizedBox(height: 12),
     DashboardPurchaseChart(summary: data.invoiceSummary),
     const SizedBox(height: 12),
-    const DashboardRevenueChart(),
+    DashboardRevenueChart(revenue: data.revenue),
     const SizedBox(height: 12),
 
     // const SizedBox(height: 12),

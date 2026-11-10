@@ -1,6 +1,6 @@
 {
-    "name": "cml_si_buying",
-    "short_name": "cml_si_buying",
+    "name": "CMAL BI Buying",
+    "short_name": "CMAL BI Buying",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

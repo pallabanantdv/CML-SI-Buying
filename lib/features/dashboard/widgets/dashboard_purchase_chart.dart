@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/number_format.dart';
+
 import '../../../shared/widgets/app_card.dart';
+import '../../../config/theme/app_colors.dart';
 import '../../../shared/widgets/app_dropdown.dart';
 import '../models/purchase_invoice_summary.dart';
 
@@ -25,15 +28,15 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
         weeks.lastOrNull;
   }
 
-  List<(String, double)> get _series => switch (_period) {
+  List<(String, double, double)> get _series => switch (_period) {
     _ChartPeriod.week => _week?.dailyCounts ?? [],
     _ChartPeriod.month => [
       for (final row in widget.summary?.monthly ?? <PurchaseTrend>[])
-        (row.label, row.count),
+        (row.label, row.count, row.amount),
     ],
     _ChartPeriod.year => [
       for (final row in widget.summary?.yearly ?? <PurchaseTrend>[])
-        (row.label, row.count),
+        (row.label, row.count, row.amount),
     ],
   };
 
@@ -46,6 +49,9 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
     );
     final total = series.fold<double>(0, (sum, row) => sum + row.$2);
     final theme = Theme.of(context);
+    String tooltip((String, double, double) row) =>
+        '${row.$1}: ${row.$2.toInt()} transactions\n'
+        'Amount: ${widget.summary?.currency ?? ''} ${AppNumberFormat.amount(row.$3)}';
     return AppCard(
       title: 'Purchase trends',
       subtitle: 'Purchase invoice counts',
@@ -92,19 +98,47 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
               final width =
                   (constraints.maxWidth / (series.isEmpty ? 1 : series.length))
                       .clamp(48.0, 88.0);
+              String axisLabel(String label) => _period == _ChartPeriod.month
+                  ? label.trim().replaceFirst(RegExp(r'\s+(?=\d{4}$)'), '\n')
+                  : label;
+              var labelHeight = 0.0;
+              for (final row in series) {
+                final painter = TextPainter(
+                  text: TextSpan(
+                    text: axisLabel(row.$1),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  textDirection: Directionality.of(context),
+                  textScaler: MediaQuery.textScalerOf(context),
+                  textAlign: TextAlign.center,
+                )..layout(maxWidth: width - 8);
+                if (painter.height > labelHeight) labelHeight = painter.height;
+                painter.dispose();
+              }
               return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (final row in series)
                       SizedBox(
                         width: width,
                         child: Semantics(
-                          label: '${row.$1}: ${row.$2.toInt()} transactions',
+                          label: tooltip(row),
                           child: Tooltip(
-                            message:
-                                '${row.$1}: ${row.$2.toInt()} transactions',
+                            textStyle: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.accent,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            triggerMode: TooltipTriggerMode.tap,
+                            message: tooltip(row),
                             child: Column(
                               children: [
                                 SizedBox(
@@ -130,7 +164,20 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                Text(row.$1, style: theme.textTheme.bodySmall),
+                                SizedBox(
+                                  height: labelHeight,
+                                  width: width,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    child: Text(
+                                      axisLabel(row.$1),
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),

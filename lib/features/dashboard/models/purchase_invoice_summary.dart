@@ -13,11 +13,13 @@ class PurchaseTrend {
     : id = '${json['period_start'] ?? json['period'] ?? json['label'] ?? ''}',
       label = '${json['label'] ?? ''}',
       count = summaryNumber(json['count']),
+      amount = summaryNumber(json['amount']),
       dailyCounts = summaryRows(json['daily_counts'])
           .map(
             (row) => (
               '${row['short_day'] ?? row['date'] ?? ''}',
               summaryNumber(row['count']),
+              summaryNumber(row['amount']),
             ),
           )
           .toList();
@@ -25,7 +27,8 @@ class PurchaseTrend {
   final String id;
   final String label;
   final double count;
-  final List<(String, double)> dailyCounts;
+  final double amount;
+  final List<(String, double, double)> dailyCounts;
 }
 
 class PurchaseInvoiceSummary {

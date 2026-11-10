@@ -78,11 +78,9 @@ class _PaymentEntryDetailsScreenState extends State<PaymentEntryDetailsScreen> {
 
   static const _groups = {
     'Payment information': [
-      'name',
       'posting_date',
       'company',
       'payment_type',
-      'party_type',
       'party',
       'party_name',
       'mode_of_payment',
@@ -90,18 +88,11 @@ class _PaymentEntryDetailsScreenState extends State<PaymentEntryDetailsScreen> {
     'Accounts and amounts': [
       'paid_from',
       'paid_from_account_currency',
-      'paid_from_account_balance',
       'paid_to',
       'paid_to_account_currency',
-      'paid_to_account_balance',
       'paid_amount',
       'received_amount',
-      'source_exchange_rate',
-      'target_exchange_rate',
-      'base_paid_amount',
-      'base_received_amount',
       'total_allocated_amount',
-      'base_total_allocated_amount',
       'unallocated_amount',
       'difference_amount',
     ],
@@ -111,8 +102,6 @@ class _PaymentEntryDetailsScreenState extends State<PaymentEntryDetailsScreen> {
       'bank',
       'bank_account',
       'party_bank_account',
-      'project',
-      'cost_center',
       'remarks',
     ],
   };
@@ -193,22 +182,33 @@ class _PaymentEntryDetailsScreenState extends State<PaymentEntryDetailsScreen> {
     ),
   );
 
+  Widget _referenceAllocations(Map<String, dynamic> record) {
+    final rows = record['references'];
+    if (rows is! List || rows.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sectionGap),
+      child: _table('references', [
+        for (final row in rows.whereType<Map>())
+          {
+            for (final key in const [
+              'reference_doctype',
+              'reference_name',
+              'due_date',
+              'total_amount',
+              'outstanding_amount',
+              'allocated_amount',
+            ])
+              key: row[key],
+          },
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final record = _record;
     final status = int.tryParse('${record?['docstatus']}');
     final colors = Theme.of(context).colorScheme;
-    final groupedKeys = _groups.values.expand((keys) => keys).toSet();
-    final additional = record == null
-        ? <String, dynamic>{}
-        : {
-            for (final entry in record.entries)
-              if (!groupedKeys.contains(entry.key) &&
-                  !_metadata.contains(entry.key) &&
-                  !entry.key.startsWith('_') &&
-                  _hasValue(entry.value))
-                entry.key: entry.value,
-          };
     return Scaffold(
       appBar: const AppAppBar(
         title: AppHeaderTitle(title: 'Payment entry details'),
@@ -265,14 +265,7 @@ class _PaymentEntryDetailsScreenState extends State<PaymentEntryDetailsScreen> {
                           }),
                         ),
                       ],
-                    if (additional.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.sectionGap),
-                      AppExpandableSection(
-                        initiallyExpanded: true,
-                        title: 'Additional details',
-                        child: _fields(additional),
-                      ),
-                    ],
+                    _referenceAllocations(record),
                   ],
                 ],
               ),

@@ -59,6 +59,12 @@ class _CreatePointOfPurchaseScreenState
   bool _loadingWarehouseAccounts = false;
   String? _warehouseAccountsError;
 
+  String? _paymentAccount(String type) =>
+      _links[type == 'Bank' ? 'bank_account' : 'cash_account'];
+
+  _CashPaymentDraft _newCashPayment() =>
+      _CashPaymentDraft()..paymentFrom = _paymentAccount('Cash');
+
   Future<void> _loadWarehouseAccounts(PointOfPurchaseViewModel vm) async {
     final request = ++_warehouseAccountRequest;
     final warehouse = _links['collection_location'];
@@ -68,12 +74,20 @@ class _CreatePointOfPurchaseScreenState
       for (final field in _warehouseAccountFields) {
         _links[field] = null;
       }
+      for (final payment in _cashPayments) {
+        payment.paymentFrom = null;
+      }
     });
     if (warehouse == null) return;
     try {
       final accounts = await vm.getWarehouseAccounts(warehouse);
       if (!mounted || request != _warehouseAccountRequest) return;
-      setState(() => _links.addAll(accounts));
+      setState(() {
+        _links.addAll(accounts);
+        for (final payment in _cashPayments) {
+          payment.paymentFrom = _paymentAccount(payment.paymentType);
+        }
+      });
     } catch (error) {
       if (!mounted || request != _warehouseAccountRequest) return;
       setState(() {
@@ -267,8 +281,10 @@ class _CreatePointOfPurchaseScreenState
       payment.paymentFrom = row['payment_from']?.toString();
       payment.checkKnlg =
           row['check_knlg'] == true || '${row['check_knlg']}' == '1';
-      payment.dueAmount.text = '${row['due_amount'] ?? ''}';
-      payment.bankPaymentAmount.text = '${row['bank_payment_amount'] ?? ''}';
+      payment.referenceNo.text = '${row['reference_no'] ?? ''}';
+      payment.referenceDate = DateTime.tryParse(
+        '${row['reference_date'] ?? ''}',
+      );
       payment.paidAmount.text = '${row['paid_amount'] ?? ''}';
       _cashPayments.add(payment);
     }
@@ -470,6 +486,12 @@ class _CreatePointOfPurchaseScreenState
     title: 'Supplier and collection',
     leading: const AppSvgIcon(icon: AppIconName.supplier),
     child: _fieldGrid([
+      _linkField(
+        viewModel,
+        'collection_location',
+        'Collection Location',
+        'Warehouse',
+      ),
       _selectField(
         label: 'Product Type',
         value: _productType,
@@ -478,12 +500,6 @@ class _CreatePointOfPurchaseScreenState
           setState(() => _productType = value);
           _purchaseItemKey.currentState?.didChange(true);
         },
-      ),
-      _linkField(
-        viewModel,
-        'collection_location',
-        'Collection Location',
-        'Warehouse',
       ),
       OutlinedButton.icon(
         onPressed:
@@ -677,6 +693,23 @@ class _CreatePointOfPurchaseScreenState
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         validator: (value) => _validateAdvance(viewModel, value),
       ),
+      _linkField(
+        viewModel,
+        'default_accepted_warehouse',
+        'Default Accepted Warehouse *',
+        'Warehouse',
+        required: true,
+      ),
+      _linkField(viewModel, 'vesel', 'Vessel', 'Supplier'),
+      _readOnlyValue(
+        'Vessel Name',
+        _findOption([
+              ...viewModel.supplierOptions,
+              ..._searchedVessels.values,
+            ], _links['vesel'])?['title']?.toString() ??
+            '',
+      ),
+
       _readOnlyValue('Ship Payment (\$)', _money(_shipPayment)),
       _readOnlyValue('Total Amount (\$)', _money(_itemTotal)),
       _readOnlyValue('Grand Total (\$)', _money(_grandTotal)),
@@ -728,22 +761,7 @@ class _CreatePointOfPurchaseScreenState
           //   ),
           //   validator: _grandTotal > 0 ? _requiredNumber : _optionalNumber,
           // ),
-          _linkField(
-            viewModel,
-            'default_accepted_warehouse',
-            'Default Accepted Warehouse *',
-            'Warehouse',
-            required: true,
-          ),
-          _linkField(viewModel, 'vesel', 'Vessel', 'Supplier'),
-          _readOnlyValue(
-            'Vessel Name',
-            _findOption([
-                  ...viewModel.supplierOptions,
-                  ..._searchedVessels.values,
-                ], _links['vesel'])?['title']?.toString() ??
-                '',
-          ),
+
           // Row(
           //   children: [
           //     Expanded(
@@ -765,7 +783,6 @@ class _CreatePointOfPurchaseScreenState
           //     ),
           //   ],
           // ),
-
           _linkField(viewModel, 'bank_account', 'Bank Account', 'Account'),
           _linkField(viewModel, 'cash_account', 'Cash Account', 'Account'),
           _linkField(
@@ -827,7 +844,7 @@ class _CreatePointOfPurchaseScreenState
             setState(() {
               _instantPaid = value ?? false;
               if (_instantPaid && _cashPayments.isEmpty) {
-                _cashPayments.add(_CashPaymentDraft());
+                _cashPayments.add(_newCashPayment());
               }
             });
           },
@@ -980,6 +997,9 @@ class _CreatePointOfPurchaseScreenState
     if (_optionsLoading(viewModel) && options.isEmpty) {
       return _OptionSkeleton(label: label);
     }
+    if (_warehouseAccountFields.contains(fieldname)) {
+      return _readOnlyValue(label, _links[fieldname] ?? '');
+    }
     if (fieldname == 'company' &&
         _links[fieldname] == null &&
         options.isNotEmpty) {
@@ -1015,10 +1035,18 @@ class _CreatePointOfPurchaseScreenState
           _links[fieldname] = value;
           if (fieldname == 'collection_location') {
             _links['default_accepted_warehouse'] = value;
+            final product = RegExp(
+              r'^(copra|cocoa)\b',
+              caseSensitive: false,
+            ).firstMatch(value?.trim() ?? '')?.group(1)?.toLowerCase();
+            if (product != null) {
+              _productType = product == 'copra' ? 'Copra' : 'Cocoa';
+            }
           }
         });
         viewModel.clearCreateError();
         if (fieldname == 'collection_location') {
+          _purchaseItemKey.currentState?.didChange(true);
           unawaited(_loadWarehouseAccounts(viewModel));
         }
       },
@@ -1100,7 +1128,9 @@ class _CreatePointOfPurchaseScreenState
   }
 
   double get _ratePerKg => _calculationValue(_fieldText('rate'));
-  double get _itemTotal => _grossWeight * _ratePerKg;
+  double get _netWeight =>
+      (_grossWeight - _totalTare).clamp(0.0, double.infinity);
+  double get _itemTotal => _netWeight * _ratePerKg;
 
   double get _grandTotal => _itemTotal;
 
@@ -1140,6 +1170,7 @@ class _CreatePointOfPurchaseScreenState
           _readOnlyValue('No. of Bag', _bags.length.toString()),
           _readOnlyValue('Gross Weight (kg)', _money(_grossWeight)),
           _readOnlyValue('Tare per bag (kg)', _money(_totalTare)),
+          _readOnlyValue('Net Weight (kg)', _money(_netWeight)),
         ]),
         const SizedBox(height: AppSpacing.medium),
         for (var index = 0; index < _bags.length; index++) ...[
@@ -1179,7 +1210,15 @@ class _CreatePointOfPurchaseScreenState
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  validator: _optionalNumber,
+                  validator: (value) {
+                    final error = _optionalNumber(value);
+                    if (error != null) return error;
+                    if (_calculationValue(value ?? '') >
+                        _calculationValue(_bags[index].weight.text)) {
+                      return 'Bag tare cannot exceed the bag weight.';
+                    }
+                    return null;
+                  },
                 ),
               ],
             ),
@@ -1203,7 +1242,7 @@ class _CreatePointOfPurchaseScreenState
         return CalculatedPurchaseItem(
           itemCode: '${existing.first['item_code']}',
           itemName: '${existing.first['item_name'] ?? ''}',
-          weightKg: _grossWeight,
+          weightKg: _netWeight,
           ratePerKg: _ratePerKg,
         );
       }
@@ -1212,7 +1251,7 @@ class _CreatePointOfPurchaseScreenState
     return CalculatedPurchaseItem(
       itemCode: item['value'].toString(),
       itemName: CalculatedPurchaseItem.itemNameForProduct(_productType)!,
-      weightKg: _grossWeight,
+      weightKg: _netWeight,
       ratePerKg: _ratePerKg,
     );
   }
@@ -1457,7 +1496,7 @@ class _CreatePointOfPurchaseScreenState
         '${_cashPayments.length} ${_cashPayments.length == 1 ? 'row' : 'rows'}',
     leading: const AppSvgIcon(icon: AppIconName.inventory),
     trailing: _AddRowButton(
-      onPressed: () => setState(() => _cashPayments.add(_CashPaymentDraft())),
+      onPressed: () => setState(() => _cashPayments.add(_newCashPayment())),
     ),
     child: Column(
       children: [
@@ -1474,9 +1513,11 @@ class _CreatePointOfPurchaseScreenState
                   label: 'Payment Type',
                   value: _cashPayments[index].paymentType,
                   options: const ['Cash', 'Bank'],
-                  onChanged: (value) => setState(
-                    () => _cashPayments[index].paymentType = value ?? 'Cash',
-                  ),
+                  onChanged: (value) => setState(() {
+                    final payment = _cashPayments[index];
+                    payment.paymentType = value ?? 'Cash';
+                    payment.paymentFrom = _paymentAccount(payment.paymentType);
+                  }),
                 ),
                 const SizedBox(height: AppSpacing.medium),
                 AppTextField(
@@ -1490,21 +1531,30 @@ class _CreatePointOfPurchaseScreenState
                 ),
                 const SizedBox(height: AppSpacing.medium),
                 AppTextField(
-                  controller: _cashPayments[index].dueAmount,
-                  label: 'Due Amount',
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  validator: _optionalNumber,
+                  controller: _cashPayments[index].referenceNo,
+                  label: 'Reference / Cheque No.',
                 ),
                 const SizedBox(height: AppSpacing.medium),
-                AppTextField(
-                  controller: _cashPayments[index].bankPaymentAmount,
-                  label: 'Bank Payment Amount',
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  validator: _optionalNumber,
+                _pickerField(
+                  label: 'Reference Date',
+                  value: _cashPayments[index].referenceDate == null
+                      ? 'Select a date'
+                      : _formatDate(_cashPayments[index].referenceDate!),
+                  onTap: () async {
+                    final payment = _cashPayments[index];
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: payment.referenceDate ?? DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (!mounted ||
+                        date == null ||
+                        !_cashPayments.contains(payment)) {
+                      return;
+                    }
+                    setState(() => payment.referenceDate = date);
+                  },
                 ),
                 const SizedBox(height: AppSpacing.medium),
                 _optionsLoading(viewModel) &&
@@ -1569,10 +1619,14 @@ class _CreatePointOfPurchaseScreenState
     final cashPaymentRows = [
       for (final row in _cashPayments)
         {
-          ...row.original,
+          for (final entry in row.original.entries)
+            if (entry.key != 'due_amount' && entry.key != 'bank_payment_amount')
+              entry.key: entry.value,
           'payment_type': row.paymentType,
-          'due_amount': _number(row.dueAmount.text),
-          'bank_payment_amount': _number(row.bankPaymentAmount.text),
+          'reference_no': row.referenceNo.text.trim(),
+          'reference_date': row.referenceDate == null
+              ? null
+              : _formatDate(row.referenceDate!),
           'payment_from': row.paymentFrom,
           'paid_amount': _number(row.paidAmount.text),
           'check_knlg': row.checkKnlg ? 1 : 0,
@@ -1646,6 +1700,7 @@ class _CreatePointOfPurchaseScreenState
       'inventory_account': _links['inventory_account'],
       'advance_receivable_account': _links['advance_receivable_account'],
       'supplier_payable_account': _links['supplier_payable_account'],
+      'paid_to': _links['supplier_payable_account'],
       'othershipping_account': _links['othershipping_account'],
       'journal_entry': _links['journal_entry'],
       'time': time,
@@ -1743,13 +1798,12 @@ class _CashPaymentDraft {
   String paymentType = 'Cash';
   String? paymentFrom;
   bool checkKnlg = false;
-  final dueAmount = TextEditingController();
-  final bankPaymentAmount = TextEditingController();
+  final referenceNo = TextEditingController();
+  DateTime? referenceDate;
   final paidAmount = TextEditingController();
 
   void dispose() {
-    dueAmount.dispose();
-    bankPaymentAmount.dispose();
+    referenceNo.dispose();
     paidAmount.dispose();
   }
 }

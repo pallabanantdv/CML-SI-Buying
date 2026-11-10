@@ -135,6 +135,10 @@ class PurchaseData extends PointOfPurchaseRepository {
   @override
   Future<List<Map<String, dynamic>>> getJournalEntryOptions() async => [];
   @override
+  Future<List<Map<String, dynamic>>> getCollectionLocationOptions() =>
+      getLinkOptions('Warehouse');
+
+  @override
   Future<List<Map<String, dynamic>>> getLinkOptions(
     String doctype, {
     List<String> fields = const ['name'],

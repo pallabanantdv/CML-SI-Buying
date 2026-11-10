@@ -39,6 +39,7 @@ class PointOfPurchaseDetailScreen extends StatefulWidget {
 class _PointOfPurchaseDetailScreenState
     extends State<PointOfPurchaseDetailScreen> {
   bool _loadingInvoice = false;
+  bool _loadingPop = false;
 
   Future<void> _viewInvoice(PointOfPurchaseViewModel vm) async {
     if (_loadingInvoice) return;
@@ -65,18 +66,64 @@ class _PointOfPurchaseDetailScreenState
     }
   }
 
+  Future<void> _printPurchase(PointOfPurchaseViewModel vm) async {
+    if (_loadingPop) return;
+    final name = widget.documentName;
+    setState(() => _loadingPop = true);
+    try {
+      final document = await vm.loadPopPreview(name);
+      if (!mounted || name != widget.documentName) return;
+      await context.pushNamedOnce(RouteNames.popPrintPreview, extra: document);
+    } catch (error) {
+      if (!mounted || name != widget.documentName) return;
+      AppSnackbar.show(
+        context,
+        error is AppException
+            ? error.message
+            : 'Unable to open the POP template. Please retry.',
+        type: AppMessageType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _loadingPop = false);
+    }
+  }
+
   PreferredSizeWidget _invoiceAction(PointOfPurchaseViewModel vm) =>
       PreferredSize(
         preferredSize: const Size.fromHeight(64),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: AppButton(
-            label: 'View invoice',
-            isLoading: _loadingInvoice,
-            onPressed:
-                _loadingInvoice || vm.isLoadingDetail || vm.isRefreshingDetail
-                ? null
-                : () => _viewInvoice(vm),
+          child: Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: 'View invoice',
+                  variant: AppButtonVariant.outlined,
+                  isLoading: _loadingInvoice,
+                  onPressed:
+                      _loadingInvoice ||
+                          _loadingPop ||
+                          vm.isLoadingDetail ||
+                          vm.isRefreshingDetail
+                      ? null
+                      : () => _viewInvoice(vm),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: AppButton(
+                  label: 'Print',
+                  isLoading: _loadingPop,
+                  onPressed:
+                      _loadingInvoice ||
+                          _loadingPop ||
+                          vm.isLoadingDetail ||
+                          vm.isRefreshingDetail
+                      ? null
+                      : () => _printPurchase(vm),
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -249,7 +296,7 @@ class _PointOfPurchaseDetailScreenState
             unawaited(viewModel.loadPointOfPurchase(widget.documentName)),
       );
     }
-    final record = viewModel.selectedRecord;
+    final record = viewModel.selectedDetail?.toJson();
     if (record == null) {
       return AppErrorWidget(
         message: 'No purchase details were returned.',
@@ -258,31 +305,21 @@ class _PointOfPurchaseDetailScreenState
       );
     }
 
-    final displayedFields = <String>{
-      'supplier_name1',
-      'supplier_name',
-      'net_payable',
-      'name',
-      'docstatus',
-      for (final section in _detailSections) ...section.$2,
-    };
-    final scalarFields = record.entries
-        .where(
-          (entry) =>
-              entry.value is! List &&
-              !displayedFields.contains(entry.key) &&
-              _hasDetailValue(entry.value),
-        )
-        .toList();
     final childTables = record.entries
-        .where((entry) => entry.value is List)
+        .where(
+          (entry) => _childFields.containsKey(entry.key) && entry.value is List,
+        )
         .toList();
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(AppDimensions.pageGutter),
       children: [
-        _OverviewCard(record: record),
+        AppExpandableSection(
+          title: 'Purchase overview',
+          initiallyExpanded: true,
+          child: _OverviewCard(record: record),
+        ),
         const SizedBox(height: AppSpacing.sectionGap),
         for (final section in _detailSections)
           if (section.$2.any((field) => _text(record[field]) != null)) ...[
@@ -290,23 +327,10 @@ class _PointOfPurchaseDetailScreenState
               record: record,
               title: section.$1,
               fields: section.$2,
-              collapsible: const [
-                'Accounting and references',
-                'Record metadata',
-              ].contains(section.$1),
+              collapsible: true,
             ),
             const SizedBox(height: AppSpacing.sectionGap),
           ],
-        if (scalarFields.isNotEmpty) ...[
-          AppExpandableSection(
-            title: 'Additional record details',
-            child: _DynamicDetailSection(
-              title: 'Record fields',
-              fields: scalarFields,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sectionGap),
-        ],
         for (final table in childTables) ...[
           AppExpandableSection(
             title:
@@ -322,25 +346,6 @@ class _PointOfPurchaseDetailScreenState
       ],
     );
   }
-}
-
-class _DynamicDetailSection extends StatelessWidget {
-  const _DynamicDetailSection({required this.title, required this.fields});
-  final String title;
-  final List<MapEntry<String, dynamic>> fields;
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      for (var index = 0; index < fields.length; index++) ...[
-        if (index > 0) const SizedBox(height: AppSpacing.cardGap),
-        _DetailRow(
-          label: _labels[fields[index].key] ?? _humanize(fields[index].key),
-          value: _displayValue(fields[index].value),
-        ),
-      ],
-    ],
-  );
 }
 
 String _tableTitle(String name) => switch (name) {
@@ -367,7 +372,16 @@ class _ChildTableSection extends StatelessWidget {
                 const Divider(),
                 const SizedBox(height: AppSpacing.cardGap),
               ],
-              _ChildTableRow(row: rows[index], index: index),
+              _ChildTableRow(
+                row: rows[index] is Map
+                    ? {
+                        for (final entry in (rows[index] as Map).entries)
+                          if (_childFields[name]!.contains(entry.key))
+                            entry.key: entry.value,
+                      }
+                    : const <String, dynamic>{},
+                index: index,
+              ),
             ],
           ],
         );
@@ -523,88 +537,105 @@ class _DetailRow extends StatelessWidget {
 
 const _detailSections = <(String, List<String>)>[
   (
-    'Purchase information',
-    ['pop_datetime', 'date', 'custom_product_type', 'delivery_type'],
-  ),
-  (
     'Supplier and collection',
     [
-      'supplier_name',
-      'supplier_type',
       'collection_location',
+      'custom_product_type',
+      'supplier_name',
+      'supplier_name1',
       'village',
       'province',
+      'supplier_type',
       'island',
-      'custom_island',
       'phonemobile_no',
-      'custom_contact_number',
-      'mobile_no',
     ],
   ),
   (
-    'Quantity and pricing',
+    'Purchase and delivery',
     [
-      'no_of_bag',
-      'gross_weight',
-      'net_qty',
-      'rate',
-      'tare',
-      'tare15kgsbag',
+      'date',
+      'time',
+      'pop_datetime',
+      'company',
+      'delivery_type',
+      'courier_name',
       'ffa',
       'moisture',
-      'total_amount',
+      'copra_bag_level',
+      'contract_no',
+      'ref_pv_no',
     ],
   ),
+  ('Bags and weight', ['no_of_bag', 'gross_weight', 'tare15kgsbag']),
   (
-    'Financial totals',
+    'Pricing and deductions',
     [
-      'mode_of_payment',
-      'payment_amount',
-      'grand_total',
-      'total_deduction',
-      'paid',
-      'instant_paid',
+      'rate',
       'freight',
-      'sea_fare',
-      'ship_payment',
       'others',
+      'sea_fare',
       'custom_paid_advance',
       'advances',
-      'gst',
+      'ship_payment',
+      'total_amount',
+      'grand_total',
+      'total_deduction',
+      'net_payable',
     ],
   ),
   (
-    'Accounting and references',
+    'Payment and accounts',
     [
-      'company',
-      'purchase_invoice',
-      'ref_pv_no',
-      'journal_entry',
-      'payment_entry',
       'default_accepted_warehouse',
       'vesel',
       'vesel_name',
-      'paid_to',
-      'othershipping_account',
       'bank_account',
       'cash_account',
+      'supplier_payable_account',
+      'othershipping_account',
       'inventory_account',
       'advance_receivable_account',
+      'instant_paid',
     ],
   ),
   // (
-  //   'Record metadata',
+  //   'Saved purchase values',
   //   [
-  //     'owner',
-  //     'creation',
-  //     'modified',
-  //     'modified_by',
-  //     'idx',
   //     'naming_series',
-  //     'doctype',
+  //     'net_qty',
+  //     'cashbank_account',
+  //     'paid_to',
+  //     'journal_entry',
   //   ],
   // ),
 ];
+
+const _childFields = <String, Set<String>>{
+  'total_bag': {'bag_number', 'weight', 'tarebagkg'},
+  'supplier_pop_item': {
+    'item_code',
+    'item_name',
+    'qty',
+    'uom',
+    'rate',
+    'total_amount',
+  },
+  'advance': {
+    'reference_name',
+    'reference_type',
+    'remarks',
+    'advance_amount',
+    'allocated_amount',
+  },
+  'pop_cash_payment': {
+    'payment_type',
+    'paid_amount',
+    'reference_no',
+    'reference_date',
+    'payment_from',
+    'check_knlg',
+  },
+};
 
 const _labels = <String, String>{
   'name': 'Purchase number',
@@ -652,13 +683,6 @@ String? _text(dynamic value) {
   if (value == null) return null;
   final text = value.toString().trim();
   return text.isEmpty ? null : text;
-}
-
-bool _hasDetailValue(dynamic value) {
-  if (value == null) return false;
-  if (value is String) return value.trim().isNotEmpty;
-  if (value is Map || value is List) return value.isNotEmpty;
-  return true;
 }
 
 String _formatValue(String key, dynamic value) {

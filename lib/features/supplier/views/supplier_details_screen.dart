@@ -234,8 +234,8 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
       'supplier_type',
       'custom_status',
       'disabled',
-      'is_frozen',
-      'on_hold',
+      // 'is_frozen',
+      // 'on_hold',
     ],
     'Contact and address': [
       'custom_contact_number',
@@ -260,7 +260,7 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
       'default_bank_account',
       'payment_terms',
       'is_internal_supplier',
-      'represents_company',
+      // 'represents_company',
     ],
   };
 

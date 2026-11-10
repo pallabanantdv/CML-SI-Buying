@@ -22,7 +22,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   static const _animationDuration = Duration(milliseconds: 2200);
   static const _displayPause = Duration(milliseconds: 650);
-  static const _brandWords = ['CAML', 'SI', 'Buying'];
+  static const _brandWords = ['CMAL', 'BI', 'Buying'];
 
   late final AnimationController _controller;
   late final Animation<double> _logoReveal;
@@ -128,7 +128,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: const AppAppBar(title: AppHeaderTitle(title: 'CAML SI Buying')),
+      appBar: const AppAppBar(title: AppHeaderTitle(title: 'CMAL BI Buying')),
       backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
         child: LayoutBuilder(
@@ -198,7 +198,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       const SizedBox(height: AppSpacing.medium),
                       Semantics(
-                        label: 'CAML SI Buying',
+                        label: 'CMAL BI Buying',
                         child: ExcludeSemantics(
                           child: Wrap(
                             alignment: WrapAlignment.center,

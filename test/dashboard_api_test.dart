@@ -82,6 +82,21 @@ class SummaryMethods extends FrappeMethodApi {
     Map<String, dynamic>? params,
     bool preserveResponse = false,
   }) async {
+    if (methodPath.endsWith('get_revenue_from_pnl')) {
+      return {
+        'currency': 'SBD',
+        'from_date': params?['from_date'],
+        'to_date': params?['to_date'],
+        'total_revenue': 24446858.82,
+        'revenue_trends': {
+          'quarterly': [
+            {'label': 'Q2 2026', 'amount': 14563445.07},
+            {'label': 'Q3 2026', 'amount': 9883413.75},
+            {'label': 'Q4 2026', 'amount': 0},
+          ],
+        },
+      };
+    }
     path = methodPath;
     query = params;
     return summary();
@@ -113,7 +128,13 @@ void main() {
     final vm = DashboardViewModel(ApiDashboardRepository(methods));
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final from = DateTime(today.year, today.month, today.day - 30);
+    final previousYear = today.year - 1;
+    final lastDay = DateTime(previousYear, today.month + 1, 0).day;
+    final from = DateTime(
+      previousYear,
+      today.month,
+      today.day > lastDay ? lastDay : today.day,
+    );
     String date(DateTime value) =>
         '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
     final defaultQuery = {'from_date': date(from), 'to_date': date(today)};
@@ -121,6 +142,8 @@ void main() {
     expect(methods.path, 'erpnext.app_api.get_purchase_invoice_summary');
     expect(methods.query, defaultQuery);
     expect(vm.isEmpty, false);
+    expect(vm.data!.revenue!.total, 24446858.82);
+    expect(vm.data!.revenue!.quarters.last, ('Q4 2026', 0.0));
     await vm.setDateRange(DateTime(2026, 10, 19), DateTime(2026, 10, 25));
     expect(methods.query, {'from_date': '2026-10-19', 'to_date': '2026-10-25'});
     await vm.refresh();
@@ -146,12 +169,18 @@ void main() {
     expect(find.text('665 transactions'), findsOneWidget);
     await tester.tap(find.widgetWithText(ChoiceChip, 'Week'));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Mon: 23 transactions'), findsOneWidget);
+    expect(
+      find.byTooltip('Mon: 23 transactions\nAmount: SBD 0.00'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('26 Oct - 01 Nov 2026'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('19 Oct - 25 Oct 2026').last);
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Mon: 12 transactions'), findsOneWidget);
+    expect(
+      find.byTooltip('Mon: 12 transactions\nAmount: SBD 0.00'),
+      findsOneWidget,
+    );
     await tester.tap(find.widgetWithText(ChoiceChip, 'Year'));
     await tester.pumpAndSettle();
     expect(find.text('0 transactions'), findsOneWidget);
