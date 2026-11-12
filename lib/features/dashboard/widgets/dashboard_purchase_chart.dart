@@ -58,6 +58,8 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text('View by', style: theme.textTheme.labelSmall),
+          const SizedBox(height: 4),
           Wrap(
             spacing: 8,
             children: [
@@ -74,6 +76,8 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
             ],
           ),
           const SizedBox(height: 12),
+          Text('Total transactions', style: theme.textTheme.labelSmall),
+          const SizedBox(height: 2),
           Text(
             '${total.toInt()} transactions',
             style: theme.textTheme.titleLarge,
@@ -93,6 +97,10 @@ class _DashboardPurchaseChartState extends State<DashboardPurchaseChart> {
           if (series.isEmpty)
             const Text('No purchase trend data for this period.'),
           const SizedBox(height: 16),
+          if (series.isNotEmpty) ...[
+            Text('Transaction count', style: theme.textTheme.labelSmall),
+            const SizedBox(height: 4),
+          ],
           LayoutBuilder(
             builder: (context, constraints) {
               final width =

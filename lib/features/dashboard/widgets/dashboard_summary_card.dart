@@ -45,6 +45,8 @@ class DashboardSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
         ],
+        Text('Purchase amount', style: Theme.of(context).textTheme.labelSmall),
+        const SizedBox(height: 2),
         Text(
           '${data.currencySymbol}${AppNumberFormat.amount(data.summary.totalValue)}',
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -52,9 +54,14 @@ class DashboardSummaryCard extends StatelessWidget {
             color: Theme.of(context).colorScheme.primary,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         Text(
-          '${data.summary.transactionCount} purchase transactions',
+          'Purchase transactions',
+          style: Theme.of(context).textTheme.labelSmall,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${data.summary.transactionCount}',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

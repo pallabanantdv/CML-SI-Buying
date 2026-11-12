@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -66,15 +68,27 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
             message: 'Reopen the POP template from purchase details.',
           );
         }
-        return InvoiceHtmlPrintPreviewScreen(
-          htmlContent: document.html,
-          title: document.title,
-          documentId: document.documentId,
-          loadPdf: document.loadPdf,
-          allowDownload: true,
-          // The download already contains the POP template margins.
-          // Keep the server PDF intact instead of rebuilding its pages.
-          pdfMarginMm: 0,
+        final appTheme = Theme.of(context);
+        return Theme(
+          // This print screen uses the platform's default typography.
+          data: ThemeData(
+            useMaterial3: appTheme.useMaterial3,
+            brightness: appTheme.brightness,
+            colorScheme: appTheme.colorScheme,
+            scaffoldBackgroundColor: appTheme.scaffoldBackgroundColor,
+          ),
+          child: InvoiceHtmlPrintPreviewScreen(
+            htmlContent: document.html,
+            title: document.title,
+            documentId: document.documentId,
+            loadPdf: document.loadPdf,
+            allowDownload: true,
+            useDocumentPageSize: true,
+            pageFormat: const PdfPageFormat(
+              58 * PdfPageFormat.mm,
+              200 * PdfPageFormat.mm,
+            ),
+          ),
         );
       },
     ),

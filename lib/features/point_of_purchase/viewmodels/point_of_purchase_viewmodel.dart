@@ -8,6 +8,7 @@ import '../../../core/models/html_print_document.dart';
 import '../models/point_of_purchase_model.dart';
 import '../models/purchase_detail_model.dart';
 import '../models/supplier_advance.dart';
+import '../printing/pop_receipt_pdf.dart';
 
 import 'package:cml_si_buying/features/point_of_purchase/repositories/point_of_purchase_repository.dart';
 
@@ -59,23 +60,18 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
         int.tryParse('${selectedRecord?['docstatus']}') != 1) {
       throw const AppException('Only submitted purchases can be printed.');
     }
-    // The POP TEMPLATE belongs to Supplier, using the purchase's Supplier link.
-    final supplierId =
-        selectedRecord?['supplier_name']?.toString().trim() ?? '';
-    if (supplierId.isEmpty) {
-      throw const AppException('No supplier is linked to this purchase.');
-    }
+    final purchase = PurchaseDetailModel.fromJson(selectedRecord!);
     return HtmlPrintDocument(
       html: '',
       title: 'POP TEMPLATE',
-      documentId: supplierId,
+      documentId: purchaseName,
       loadPdf: () {
         if (isDisposed || session != _sessionId) {
           throw const AppException(
             'The account changed. Please reopen the purchase.',
           );
         }
-        return repository.getPopPrintPdf(supplierId);
+        return PopReceiptPdf.build(purchase);
       },
     );
   }

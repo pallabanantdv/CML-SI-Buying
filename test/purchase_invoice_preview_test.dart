@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cml_si_buying/core/errors/app_exception.dart';
@@ -96,34 +98,27 @@ void main() {
     },
   );
 
-  test('POP uses the linked Supplier and server POP TEMPLATE without a linked invoice', () async {
+  test('POP builds a local receipt without backend print requests', () async {
     repository.invoice = null;
     await vm.loadPointOfPurchase('POP/1');
     final document = await vm.loadPopPreview('POP/1');
     expect(document.title, 'POP TEMPLATE');
-    expect(document.documentId, 'CAMLSCC-1049');
-    expect(requests, isEmpty);
+    expect(document.documentId, 'POP/1');
     final bytes = await document.loadPdf!();
-    expect(bytes, '%PDF-1.4 invoice'.codeUnits);
-    expect(requests.single.headers['Accept'], 'application/pdf');
-    expect(requests.single.headers['Cache-Control'], 'no-cache');
-    expect(requests.single.queryParameters, {
-      'doctype': 'Supplier',
-      'name': 'CAMLSCC-1049',
-      'format': 'POP TEMPLATE',
-      '_lang': 'en',
-      'letterhead': 'None',
-      'key': 'None',
-      'no_letterhead': 1,
-    });
+    expect(latin1.decode(bytes.take(5).toList()), '%PDF-');
+    expect(requests, isEmpty);
   });
 
-  test('POP rejects a purchase with no linked Supplier', () async {
-    repository.supplierId = null;
-    await vm.loadPointOfPurchase('POP/1');
-    await expectLater(vm.loadPopPreview('POP/1'), throwsA(isA<AppException>()));
-    expect(requests, isEmpty);
-  });
+  test(
+    'local POP handles an absent supplier without fetching a server template',
+    () async {
+      repository.supplierId = null;
+      await vm.loadPointOfPurchase('POP/1');
+      final document = await vm.loadPopPreview('POP/1');
+      await document.loadPdf!();
+      expect(requests, isEmpty);
+    },
+  );
 
   test(
     'POP rejects drafts, cancelled purchases and a different selected purchase',

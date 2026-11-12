@@ -26,6 +26,8 @@ class InvoiceHtmlPrintPreviewScreen extends StatefulWidget {
     this.embedded = false,
     this.allowDownload = false,
     this.pdfMarginMm = 0,
+    this.pageFormat = PdfPageFormat.a4,
+    this.useDocumentPageSize = false,
   }) : assert(pdfMarginMm >= 0);
 
   /// Preserve the invoice's desktop print layout and let WebView fit it to
@@ -150,6 +152,8 @@ $html
 
   /// Additional white inset inside every PDF page, in millimetres.
   final double pdfMarginMm;
+  final PdfPageFormat pageFormat;
+  final bool useDocumentPageSize;
   final bool allowDownload;
   final bool embedded;
   final String htmlContent;
@@ -386,9 +390,20 @@ class _InvoiceHtmlPrintPreviewScreenState
         );
         await Printing.sharePdf(bytes: bytes, filename: '$name.pdf');
       } else {
+        var format = widget.pageFormat;
+        if (widget.useDocumentPageSize) {
+          // A roll receipt has a variable height. Use its actual aspect ratio
+          // so the print dialog does not shrink it into a fixed-height sheet.
+          final page = await Printing.raster(bytes, pages: [0], dpi: 72).first;
+          format = PdfPageFormat(
+            widget.pageFormat.width,
+            widget.pageFormat.width * page.height / page.width,
+          );
+        }
         await Printing.layoutPdf(
           onLayout: (_) async => bytes,
           name: widget.title,
+          format: format,
           dynamicLayout: false,
         );
       }
@@ -514,6 +529,7 @@ class _InvoiceHtmlPrintPreviewScreenState
                       ? PdfPreview.builder(
                           key: ValueKey(_generation),
                           build: (_) => _loadPdf(),
+                          initialPageFormat: widget.pageFormat,
                           useActions: false,
                           canChangePageFormat: false,
                           canChangeOrientation: false,

@@ -37,15 +37,18 @@ class DashboardRevenueChart extends StatelessWidget {
     final theme = Theme.of(context);
     return AppCard(
       title: 'Revenue trend',
-      // subtitle: '${data.fromDate} – ${data.toDate}',
+      subtitle: data.fromDate.isNotEmpty && data.toDate.isNotEmpty
+          ? 'Period: ${data.fromDate} to ${data.toDate}'
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text('Total revenue', style: theme.textTheme.labelSmall),
+          const SizedBox(height: 2),
           Text(
             '${data.currency} ${AppNumberFormat.amount(total)}',
             style: theme.textTheme.titleLarge,
           ),
-          Text('Total revenue', style: theme.textTheme.bodySmall),
           const SizedBox(height: 20),
           if (positiveTotal <= 0)
             const Text('No positive revenue in this period.')
@@ -80,12 +83,12 @@ class DashboardRevenueChart extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(quarters[index])),
+                  Expanded(child: Text('Quarter: ${quarters[index]}')),
                   Flexible(
                     flex: 2,
                     child: Text(
-                      '${data.currency} ${AppNumberFormat.amount(values[index])} · '
-                      '${(positiveTotal <= 0 ? 0 : math.max(0, values[index]) / positiveTotal * 100).toStringAsFixed(0)}%',
+                      'Amount: ${data.currency} ${AppNumberFormat.amount(values[index])}\n'
+                      'Share: ${(positiveTotal <= 0 ? 0 : math.max(0, values[index]) / positiveTotal * 100).toStringAsFixed(0)}%',
                       textAlign: TextAlign.end,
                       style: theme.textTheme.bodySmall,
                     ),

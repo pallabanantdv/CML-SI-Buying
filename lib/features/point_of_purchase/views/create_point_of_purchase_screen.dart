@@ -3,6 +3,7 @@ import 'dart:async';
 import 'supplier_qr_scanner_screen.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -44,6 +45,10 @@ class _CreatePointOfPurchaseScreenState
   var _formKey = GlobalKey<FormState>();
   var _purchaseItemKey = GlobalKey<FormFieldState<bool>>();
   final List<_BagDraft> _bags = [_BagDraft(1)];
+  final _bagCount = TextEditingController(text: '1');
+  // Retain entered weights while the user edits a multi-digit bag count.
+  final List<_BagDraft> _spareBags = [];
+  static const _maxBagCount = 1000;
   final List<_CashPaymentDraft> _cashPayments = [];
   final Map<String, TextEditingController> _fields = {};
   final Map<String, String?> _links = {};
@@ -256,9 +261,10 @@ class _CreatePointOfPurchaseScreenState
         : stamp != null
         ? TimeOfDay.fromDateTime(stamp)
         : TimeOfDay.now();
-    for (final row in _bags) {
+    for (final row in [..._bags, ..._spareBags]) {
       row.dispose();
     }
+    _spareBags.clear();
     _bags.clear();
     for (final row in _originalRows('total_bag')) {
       final bag = _BagDraft(_bags.length + 1)..original = row;
@@ -271,6 +277,7 @@ class _CreatePointOfPurchaseScreenState
       _bags.add(_BagDraft(1)..weight.text = '${record['gross_weight'] ?? ''}');
     }
     _nextBagNumber = _bags.length + 1;
+    _syncBagCount();
     for (final row in _cashPayments) {
       row.dispose();
     }
@@ -296,7 +303,7 @@ class _CreatePointOfPurchaseScreenState
 
   @override
   void dispose() {
-    for (final row in _bags) {
+    for (final row in [..._bags, ..._spareBags]) {
       row.dispose();
     }
     for (final row in _cashPayments) {
@@ -305,6 +312,7 @@ class _CreatePointOfPurchaseScreenState
     for (final controller in _fields.values) {
       controller.dispose();
     }
+    _bagCount.dispose();
     super.dispose();
   }
 
@@ -453,12 +461,14 @@ class _CreatePointOfPurchaseScreenState
       for (final controller in _fields.values) {
         controller.clear();
       }
-      for (final bag in _bags) {
+      for (final bag in [..._bags, ..._spareBags]) {
         bag.dispose();
       }
+      _spareBags.clear();
       _bags
         ..clear()
         ..add(_BagDraft(1));
+      _syncBagCount();
       for (final payment in _cashPayments) {
         payment.dispose();
       }
@@ -1155,19 +1165,67 @@ class _CreatePointOfPurchaseScreenState
 
   String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
+  void _syncBagCount() {
+    final text = _bags.length.toString();
+    _bagCount.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  String? _validateBagCount(String? value) {
+    final count = int.tryParse(value?.trim() ?? '');
+    if (count == null || count < 1 || count > _maxBagCount) {
+      return 'Enter a whole number from 1 to $_maxBagCount.';
+    }
+    return null;
+  }
+
+  void _changeBagCount(String value) {
+    if (_validateBagCount(value) != null) return;
+    final count = int.parse(value.trim());
+    setState(() {
+      while (_bags.length > count) {
+        _spareBags.insert(0, _bags.removeLast());
+      }
+      while (_bags.length < count) {
+        _bags.add(
+          _spareBags.isNotEmpty
+              ? _spareBags.removeAt(0)
+              : _BagDraft(_nextBagNumber++),
+        );
+      }
+    });
+    context.read<PointOfPurchaseViewModel>().clearCreateError();
+  }
+
   Widget _buildBagTable() => AppCard(
     tone: AppCardTone.success,
     showAccentBar: false,
     title: 'Bags and weight',
-    subtitle: '${_bags.length} ${_bags.length == 1 ? 'row' : 'rows'}',
+    subtitle: '${_bags.length} ${_bags.length == 1 ? 'bag' : 'bags'}',
     leading: const AppSvgIcon(icon: AppIconName.inventory),
     trailing: _AddRowButton(
-      onPressed: () => setState(() => _bags.add(_BagDraft(_nextBagNumber++))),
+      onPressed: _bags.length >= _maxBagCount
+          ? null
+          : () {
+              _changeBagCount('${_bags.length + 1}');
+              _syncBagCount();
+            },
     ),
     child: Column(
       children: [
         _fieldGrid([
-          _readOnlyValue('No. of Bag', _bags.length.toString()),
+          AppTextField(
+            controller: _bagCount,
+            label: 'No. of Bag',
+            required: true,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            validator: _validateBagCount,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            onChanged: _changeBagCount,
+          ),
           _readOnlyValue('Gross Weight (kg)', _money(_grossWeight)),
           _readOnlyValue('Tare per bag (kg)', _money(_totalTare)),
           _readOnlyValue('Net Weight (kg)', _money(_netWeight)),
@@ -1179,7 +1237,10 @@ class _CreatePointOfPurchaseScreenState
             title: 'Bag ${index + 1}',
             onRemove: _bags.length == 1
                 ? null
-                : () => setState(() => _bags.removeAt(index).dispose()),
+                : () => setState(() {
+                    _bags.removeAt(index).dispose();
+                    _syncBagCount();
+                  }),
             child: Column(
               children: [
                 AppTextField(
@@ -1575,14 +1636,14 @@ class _CreatePointOfPurchaseScreenState
                           () => _cashPayments[index].paymentFrom = value,
                         ),
                       ),
-                const SizedBox(height: AppSpacing.small),
-                AppCheckbox(
-                  value: _cashPayments[index].checkKnlg,
-                  label: 'Check acknowledged',
-                  onChanged: (value) => setState(
-                    () => _cashPayments[index].checkKnlg = value ?? false,
-                  ),
-                ),
+                // const SizedBox(height: AppSpacing.small),
+                // AppCheckbox(
+                //   value: _cashPayments[index].checkKnlg,
+                //   label: 'Check acknowledged',
+                //   onChanged: (value) => setState(
+                //     () => _cashPayments[index].checkKnlg = value ?? false,
+                //   ),
+                // ),
               ],
             ),
           ),
@@ -1811,7 +1872,7 @@ class _CashPaymentDraft {
 class _AddRowButton extends StatelessWidget {
   const _AddRowButton({required this.onPressed});
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) => TextButton.icon(

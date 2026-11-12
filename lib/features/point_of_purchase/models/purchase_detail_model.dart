@@ -166,6 +166,7 @@ class PurchaseDetailModel {
     this.advances,
     this.customPaidAdvance,
     this.netPayable,
+    this.outstandingAmount,
     this.netQty,
     this.docstatus,
     this.instantPaid,
@@ -222,6 +223,20 @@ class PurchaseDetailModel {
   final double? advances;
   final double? customPaidAdvance;
   final double? netPayable;
+  final double? outstandingAmount;
+
+  /// Prefer the saved balance; net payable already includes advance deductions.
+  double? get outstandingBalance {
+    if (outstandingAmount != null) return outstandingAmount;
+    if (netPayable == null) return null;
+    final paid = (popCashPayment ?? <PurchaseCashPaymentDetail>[]).fold<double>(
+      0,
+      (sum, payment) => sum + (payment.paidAmount ?? 0),
+    );
+    final balance = netPayable! - paid;
+    return balance > 0 ? balance : 0;
+  }
+
   final double? netQty;
   final int? docstatus;
   final int? instantPaid;
@@ -280,6 +295,7 @@ class PurchaseDetailModel {
     advances: _number(json['advances'])?.toDouble(),
     customPaidAdvance: _number(json['custom_paid_advance'])?.toDouble(),
     netPayable: _number(json['net_payable'])?.toDouble(),
+    outstandingAmount: _number(json['outstanding_amount'])?.toDouble(),
     netQty: _number(json['net_qty'])?.toDouble(),
     docstatus: _number(json['docstatus'])?.toInt(),
     instantPaid: _number(json['instant_paid'])?.toInt(),
@@ -345,6 +361,7 @@ class PurchaseDetailModel {
     'advances': advances,
     'custom_paid_advance': customPaidAdvance,
     'net_payable': netPayable,
+    'outstanding_amount': outstandingAmount,
     'net_qty': netQty,
     'docstatus': docstatus,
     'instant_paid': instantPaid,

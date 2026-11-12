@@ -24,7 +24,7 @@ class DashboardProductCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Unit', style: Theme.of(context).textTheme.labelSmall),
+        Text('Quantity', style: Theme.of(context).textTheme.labelSmall),
         const SizedBox(height: 2),
         Text(
           '${AppNumberFormat.amount(quantity)} ${product.unit}',

@@ -201,13 +201,17 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(
-        find.descendant(of: find.byType(AppBar), matching: find.text('Save')),
+        find.descendant(of: find.byType(AppBar), matching: find.text('Submit')),
         findsOneWidget,
       );
       expect(find.text('Submit purchase'), findsNothing);
       await tester.tap(find.text('Update'));
       await tester.pumpAndSettle();
       expect(find.text('Update purchase'), findsOneWidget);
+      expect(
+        tester.widget<AppTextField>(textField('No. of Bag')).controller!.text,
+        '2',
+      );
       expect(repository.warehouseRequests, ['W1']);
       expect(
         tester.widget<AppTextField>(textField('Village')).controller!.text,
@@ -259,18 +263,22 @@ void main() {
         (payload['supplier_pop_item'] as List).first['custom_item'],
         'keep',
       );
-      expect(payload['advance'], record()['advance']);
+      expect(payload['advance'], [
+        for (final row in record()['advance'] as List)
+          {...row as Map<String, dynamic>, 'reference_type': 'Payment Entry'},
+      ]);
       expect((payload['pop_cash_payment'] as List).single['name'], 'CASH-1');
       expect(
         (payload['pop_cash_payment'] as List).single['payment_from'],
-        'A1',
+        'Default cash_account',
       );
-      expect(payload['total_amount'], 250);
-      expect(payload['grand_total'], 250);
+      // 25 kg gross less 3 kg tare, at $10/kg.
+      expect(payload['total_amount'], 220);
+      expect(payload['grand_total'], 220);
       expect(payload['ship_payment'], 3);
       expect(payload['total_deduction'], 3);
       expect(payload['tare15kgsbag'], 3);
-      expect(payload['net_payable'], 242);
+      expect(payload['net_payable'], 212);
       expect(find.text('Purchase updated successfully'), findsOneWidget);
       expect(vm.selectedRecord?['village'], 'Updated village');
       expect(tester.takeException(), isNull);
@@ -319,7 +327,7 @@ void main() {
     },
   );
   testWidgets(
-    'draft header Save and Update fit a narrow phone with large text',
+    'draft header Submit and Update fit a narrow phone with large text',
     (tester) async {
       tester.view.physicalSize = const Size(320, 844);
       tester.view.devicePixelRatio = 1;
@@ -341,7 +349,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Save'), findsOneWidget);
+      expect(find.text('Submit'), findsOneWidget);
       expect(find.text('Update'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
