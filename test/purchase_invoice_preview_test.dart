@@ -13,11 +13,13 @@ class InvoiceRepository extends PointOfPurchaseRepository {
   InvoiceRepository(super.resources);
   int status = 1;
   String? invoice = 'PINV/1';
+  String? supplierId = 'CAMLSCC-1049';
   @override
   Future<Map<String, dynamic>> getPointOfPurchase(String name) async => {
     'name': name,
     'docstatus': status,
     'purchase_invoice': invoice,
+    'supplier_name': supplierId,
   };
 }
 
@@ -94,25 +96,34 @@ void main() {
     },
   );
 
-  test(
-    'POP uses the purchase document and POP TEMPLATE without a linked invoice',
-    () async {
-      repository.invoice = null;
-      await vm.loadPointOfPurchase('POP/1');
-      final document = await vm.loadPopPreview('POP/1');
-      expect(document.title, 'POP TEMPLATE');
-      expect(document.documentId, 'POP/1');
-      expect(requests, isEmpty);
-      await document.loadPdf!();
-      expect(requests.single.queryParameters, {
-        'doctype': 'Supplier Point Of Purchase',
-        'name': 'POP/1',
-        'format': 'POP TEMPLATE',
-        '_lang': 'en',
-        'no_letterhead': 1,
-      });
-    },
-  );
+  test('POP uses the linked Supplier and server POP TEMPLATE without a linked invoice', () async {
+    repository.invoice = null;
+    await vm.loadPointOfPurchase('POP/1');
+    final document = await vm.loadPopPreview('POP/1');
+    expect(document.title, 'POP TEMPLATE');
+    expect(document.documentId, 'CAMLSCC-1049');
+    expect(requests, isEmpty);
+    final bytes = await document.loadPdf!();
+    expect(bytes, '%PDF-1.4 invoice'.codeUnits);
+    expect(requests.single.headers['Accept'], 'application/pdf');
+    expect(requests.single.headers['Cache-Control'], 'no-cache');
+    expect(requests.single.queryParameters, {
+      'doctype': 'Supplier',
+      'name': 'CAMLSCC-1049',
+      'format': 'POP TEMPLATE',
+      '_lang': 'en',
+      'letterhead': 'None',
+      'key': 'None',
+      'no_letterhead': 1,
+    });
+  });
+
+  test('POP rejects a purchase with no linked Supplier', () async {
+    repository.supplierId = null;
+    await vm.loadPointOfPurchase('POP/1');
+    await expectLater(vm.loadPopPreview('POP/1'), throwsA(isA<AppException>()));
+    expect(requests, isEmpty);
+  });
 
   test(
     'POP rejects drafts, cancelled purchases and a different selected purchase',

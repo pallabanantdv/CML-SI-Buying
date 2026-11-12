@@ -37,6 +37,8 @@ class FrappeResourceApi {
     String name,
     String format, {
     String? language,
+    String? letterhead,
+    String? key,
   }) => _client.getPdf(
     '/api/method/frappe.utils.print_format.download_pdf',
     queryParameters: {
@@ -45,6 +47,8 @@ class FrappeResourceApi {
       'format': format,
       'no_letterhead': 1,
       '_lang': ?language,
+      'letterhead': ?letterhead,
+      'key': ?key,
     },
   );
 

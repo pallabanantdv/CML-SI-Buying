@@ -59,17 +59,23 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
         int.tryParse('${selectedRecord?['docstatus']}') != 1) {
       throw const AppException('Only submitted purchases can be printed.');
     }
+    // The POP TEMPLATE belongs to Supplier, using the purchase's Supplier link.
+    final supplierId =
+        selectedRecord?['supplier_name']?.toString().trim() ?? '';
+    if (supplierId.isEmpty) {
+      throw const AppException('No supplier is linked to this purchase.');
+    }
     return HtmlPrintDocument(
       html: '',
       title: 'POP TEMPLATE',
-      documentId: purchaseName,
+      documentId: supplierId,
       loadPdf: () {
         if (isDisposed || session != _sessionId) {
           throw const AppException(
             'The account changed. Please reopen the purchase.',
           );
         }
-        return repository.getPopPrintPdf(purchaseName);
+        return repository.getPopPrintPdf(supplierId);
       },
     );
   }

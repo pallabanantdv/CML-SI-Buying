@@ -24,8 +24,16 @@ class PointOfPurchaseRepository {
   Future<Uint8List> getInvoicePrintPdf(String invoice) => _resourceApi
       .getPrintPdf('Purchase Invoice', invoice, 'PI', language: 'en');
 
-  Future<Uint8List> getPopPrintPdf(String name) =>
-      _resourceApi.getPrintPdf(_doctype, name, 'POP TEMPLATE', language: 'en');
+  // Match the server's browser download, preserving its original page margins.
+  Future<Uint8List> getPopPrintPdf(String supplierId) =>
+      _resourceApi.getPrintPdf(
+        'Supplier',
+        supplierId,
+        'POP TEMPLATE',
+        language: 'en',
+        letterhead: 'None',
+        key: 'None',
+      );
 
   static const warehouseAccountFields = [
     'cash_account',

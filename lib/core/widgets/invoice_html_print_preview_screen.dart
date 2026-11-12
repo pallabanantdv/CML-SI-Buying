@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../models/html_print_document.dart';
@@ -23,31 +25,131 @@ class InvoiceHtmlPrintPreviewScreen extends StatefulWidget {
     this.loadPdf,
     this.embedded = false,
     this.allowDownload = false,
-  });
+    this.pdfMarginMm = 0,
+  }) : assert(pdfMarginMm >= 0);
 
   /// Preserve the invoice's desktop print layout and let WebView fit it to
   /// the screen, with pinch zoom available for reading small text.
+  // static String prepareHtml(String response) {
+  //   final html = HtmlPrintDocument.extractHtml(response).replaceAll(
+  //     RegExp(
+  //       r'<meta\b[^>]*\bname\s*=\s*["\x27]viewport["\x27][^>]*>',
+  //       caseSensitive: false,
+  //     ),
+  //     '',
+  //   );
+  //   // return html.replaceFirst(
+  //   //   RegExp(r'</head\s*>', caseSensitive: false),
+  //   //   '<meta name="viewport" content="width=980, user-scalable=yes">'
+  //   //   '<style>'
+  //   //   '.print-toolbar,.action-banner,.page-head,.printview-header'
+  //   //   '{display:none!important;}'
+  //   //   'html,body{margin:0!important;padding:0!important;background:white!important;}'
+  //   //   '.print-format-gutter{margin:0!important;padding:0!important;background:white!important;}'
+  //   //   '.print-format{margin:0 auto!important;box-shadow:none!important;}'
+  //   //   '</style></head>',
+  //   // );
+
+  //   return html.replaceFirst(
+  //     RegExp(r'</head\s*>', caseSensitive: false),
+  //     '<meta name="viewport" content="width=980, user-scalable=yes">'
+  //     '<style>'
+  //     '.print-toolbar,.action-banner,.page-head,.printview-header'
+  //     '{display:none!important;}'
+  //     'html,body{margin:0!important;padding:0!important;background:red!important;}'
+  //     '.print-format-gutter{margin:8px!important;padding:8px!important;background:red!important;}'
+  //     '.print-format{margin:8px auto!important;padding:8px!important;background:white!important;box-shadow:none!important;}'
+  //     '</style></head>',
+  //   );
+  // }
+
   static String prepareHtml(String response) {
-    final html = HtmlPrintDocument.extractHtml(response).replaceAll(
+    var html = HtmlPrintDocument.extractHtml(response);
+
+    // Remove existing viewport meta tags.
+    html = html.replaceAll(
       RegExp(
         r'<meta\b[^>]*\bname\s*=\s*["\x27]viewport["\x27][^>]*>',
         caseSensitive: false,
       ),
       '',
     );
-    return html.replaceFirst(
-      RegExp(r'</head\s*>', caseSensitive: false),
-      '<meta name="viewport" content="width=980, user-scalable=yes">'
-      '<style>'
-      '.print-toolbar,.action-banner,.page-head,.printview-header'
-      '{display:none!important;}'
-      'html,body{margin:0!important;padding:0!important;background:white!important;}'
-      '.print-format-gutter{margin:0!important;padding:0!important;background:white!important;}'
-      '.print-format{margin:0 auto!important;box-shadow:none!important;}'
-      '</style></head>',
-    );
+
+    const customStyles = '''
+<meta name="viewport"
+      content="width=980, user-scalable=yes">
+
+<style id="custom-print-style">
+  html {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: red !important;
   }
 
+  body {
+    margin: 0 !important;
+    padding: 8px !important;
+    background: red !important;
+    min-height: 100vh !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-toolbar,
+  .action-banner,
+  .page-head,
+  .printview-header {
+    display: none !important;
+  }
+
+  .print-format-gutter {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .print-format {
+    margin: 0 auto !important;
+    padding: 8px !important;
+    background: white !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+  }
+</style>
+''';
+
+    // Insert styles at the end of head if available.
+    final headEnd = RegExp(r'</head\s*>', caseSensitive: false);
+
+    if (headEnd.hasMatch(html)) {
+      return html.replaceFirst(headEnd, '$customStyles</head>');
+    }
+
+    // If no head exists, insert a complete head.
+    final htmlStart = RegExp(r'<html\b[^>]*>', caseSensitive: false);
+
+    if (htmlStart.hasMatch(html)) {
+      return html.replaceFirstMapped(
+        htmlStart,
+        (match) => '${match.group(0)}<head>$customStyles</head>',
+      );
+    }
+
+    // Handle HTML fragments.
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+$customStyles
+</head>
+<body>
+$html
+</body>
+</html>
+''';
+  }
+
+  /// Additional white inset inside every PDF page, in millimetres.
+  final double pdfMarginMm;
   final bool allowDownload;
   final bool embedded;
   final String htmlContent;
@@ -77,8 +179,39 @@ class _InvoiceHtmlPrintPreviewScreenState
   bool get _usePdf => widget.loadPdf != null;
 
   Future<Uint8List> _loadPdf() => _pdfRequest ??= () async {
-    final bytes = await widget.loadPdf!();
-    if (mounted) _pdf = bytes;
+    final generation = _generation;
+    var bytes = await widget.loadPdf!();
+    if (widget.pdfMarginMm > 0) {
+      // Add space to the PDF page itself so the server template retains
+      // its original dimensions and text size inside the new margins.
+      const dpi = 300.0;
+      final document = pw.Document();
+      var pageCount = 0;
+      await for (final page in Printing.raster(bytes, dpi: dpi)) {
+        final contentWidth = page.width * PdfPageFormat.inch / dpi;
+        final contentHeight = page.height * PdfPageFormat.inch / dpi;
+        final margin = widget.pdfMarginMm * PdfPageFormat.mm;
+        final width = contentWidth + margin * 2;
+        final height = contentHeight + margin * 2;
+        final image = pw.MemoryImage(await page.toPng());
+        document.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat(width, height),
+            margin: pw.EdgeInsets.all(margin),
+            build: (_) => pw.Image(
+              image,
+              width: contentWidth,
+              height: contentHeight,
+              fit: pw.BoxFit.contain,
+            ),
+          ),
+        );
+        pageCount++;
+      }
+      if (pageCount == 0) throw StateError('The print document has no pages.');
+      bytes = await document.save();
+    }
+    if (mounted && generation == _generation) _pdf = bytes;
     return bytes;
   }();
   Timer? _loadTimeout;
@@ -94,6 +227,24 @@ class _InvoiceHtmlPrintPreviewScreenState
   void initState() {
     super.initState();
     unawaited(_initialize());
+  }
+
+  @override
+  void didUpdateWidget(covariant InvoiceHtmlPrintPreviewScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pdfMarginMm != widget.pdfMarginMm ||
+        oldWidget.documentId != widget.documentId ||
+        oldWidget.htmlContent != widget.htmlContent ||
+        oldWidget.loadPdf != widget.loadPdf) {
+      _refresh();
+    }
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    // Hot reload preserves State, including the previously generated PDF.
+    if (_usePdf) _refresh();
   }
 
   bool _allowNavigation(String url) {
@@ -128,7 +279,7 @@ class _InvoiceHtmlPrintPreviewScreenState
       if (_official) {
         final controller = _controller ?? WebViewController();
         await controller.setJavaScriptMode(JavaScriptMode.disabled);
-        await controller.setBackgroundColor(Colors.white);
+        await controller.setBackgroundColor(Colors.red);
         await controller.enableZoom(true);
         await controller.setNavigationDelegate(
           NavigationDelegate(
@@ -238,6 +389,7 @@ class _InvoiceHtmlPrintPreviewScreenState
         await Printing.layoutPdf(
           onLayout: (_) async => bytes,
           name: widget.title,
+          dynamicLayout: false,
         );
       }
     } catch (error) {
@@ -417,8 +569,17 @@ class _InvoiceHtmlPrintPreviewScreenState
                           children: [
                             if (_ready)
                               Positioned.fill(
-                                child: WebViewWidget(controller: _controller!),
+                                child: ColoredBox(
+                                  color: Colors.red,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: WebViewWidget(
+                                      controller: _controller!,
+                                    ),
+                                  ),
+                                ),
                               ),
+
                             if (_loading)
                               Positioned.fill(
                                 child: ColoredBox(

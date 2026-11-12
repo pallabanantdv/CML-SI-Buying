@@ -65,6 +65,7 @@ class ApiClient {
       path,
       queryParameters: queryParameters,
       responseType: ResponseType.bytes,
+      headers: const {'Accept': 'application/pdf', 'Cache-Control': 'no-cache'},
     );
     if (body is! List<int> ||
         body.length < 5 ||
@@ -118,6 +119,7 @@ class ApiClient {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     ResponseType? responseType,
+    Map<String, dynamic>? headers,
     bool optionalPermission = false,
   }) async {
     if (dio.options.baseUrl.isEmpty) {
@@ -142,6 +144,7 @@ class ApiClient {
         options: Options(
           method: method,
           responseType: responseType,
+          headers: headers,
           contentType: data is FormData ? 'multipart/form-data' : null,
         ),
       );

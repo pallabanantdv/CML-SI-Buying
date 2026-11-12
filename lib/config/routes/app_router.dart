@@ -72,6 +72,9 @@ GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
           documentId: document.documentId,
           loadPdf: document.loadPdf,
           allowDownload: true,
+          // The download already contains the POP template margins.
+          // Keep the server PDF intact instead of rebuilding its pages.
+          pdfMarginMm: 0,
         );
       },
     ),
