@@ -7,6 +7,8 @@ class PaymentEntryListViewModel extends DiagnosticNotifier {
   final SupplierPaymentRepository repository;
   List<Map<String, dynamic>> records = [];
   int? status;
+  String query = '';
+  String? supplier;
   bool loading = false, loadingMore = false, hasMore = false;
   String? error, submittingName;
   int _request = 0;
@@ -31,6 +33,8 @@ class PaymentEntryListViewModel extends DiagnosticNotifier {
       final rows = await repository.entries(
         offset: more ? _offset : 0,
         status: status,
+        query: query,
+        supplier: supplier,
       );
       if (isDisposed || request != _request) return;
       records = more
@@ -62,6 +66,26 @@ class PaymentEntryListViewModel extends DiagnosticNotifier {
   Future<void> filter(int? value) async {
     if (submittingName != null || value == status) return;
     status = value;
+    await _reloadForFilters();
+  }
+
+  Future<void> search(String value) async {
+    final nextQuery = value.trim();
+    if (submittingName != null || nextQuery == query) return;
+    query = nextQuery;
+    await _reloadForFilters();
+  }
+
+  Future<void> filterSupplier(String? value) async {
+    if (submittingName != null || value == supplier) return;
+    supplier = value;
+    await _reloadForFilters();
+  }
+
+  Future<List<Map<String, dynamic>>> searchSuppliers(String value) =>
+      repository.suppliers(query: value, limit: 50);
+
+  Future<void> _reloadForFilters() async {
     records = [];
     hasMore = false;
     _offset = 0;

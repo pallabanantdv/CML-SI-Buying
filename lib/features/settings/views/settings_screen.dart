@@ -83,7 +83,7 @@ class SettingsScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'CMAL BI Buying',
+                        'CAML',
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                       const SizedBox(height: AppSpacing.relatedGap),
@@ -95,7 +95,7 @@ class SettingsScreen extends StatelessWidget {
                       //   variant: AppButtonVariant.outlined,
                       //   onPressed: () => showLicensePage(
                       //     context: context,
-                      //     applicationName: 'CMAL BI Buying',
+                      //     applicationName: 'CAML',
                       //   ),
                       // ),
                     ],

@@ -8,13 +8,16 @@ import '../../../config/theme/app_dimensions.dart';
 import '../../../core/navigation/app_navigation.dart';
 import '../../../core/utils/number_format.dart';
 import '../../../shared/widgets/app_app_bar.dart';
+import '../../../shared/widgets/app_paginated_list.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_card_heading.dart';
+import '../../../shared/widgets/app_dropdown.dart';
 import '../../../shared/widgets/app_error_widget.dart';
 import '../../../shared/widgets/app_header_title.dart';
 import '../../../shared/widgets/app_snackbar.dart';
 import '../../../shared/widgets/app_status_badge.dart';
+import '../../../shared/widgets/app_text_field.dart';
 import '../../../shared/widgets/skeleton/skeleton.dart';
 import '../viewmodels/payment_entry_list_viewmodel.dart';
 
@@ -26,12 +29,90 @@ class PaymentEntryListScreen extends StatefulWidget {
 
 class _PaymentEntryListScreenState extends State<PaymentEntryListScreen> {
   bool _creating = false;
+  final _searchController = TextEditingController();
+  final List<DropdownMenuItem<String>> _supplierItems = [];
+  Timer? _searchDebounce;
+  int _supplierRequest = 0;
+  bool _loadingSuppliers = true;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(context.read<PaymentEntryListViewModel>().load());
+      if (!mounted) return;
+      final vm = context.read<PaymentEntryListViewModel>();
+      unawaited(vm.load());
+      unawaited(_loadInitialSuppliers(vm));
     });
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _searchEntries(PaymentEntryListViewModel vm, String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) unawaited(vm.search(value));
+    });
+  }
+
+  Future<void> _loadInitialSuppliers(PaymentEntryListViewModel vm) async {
+    try {
+      await _searchSuppliers(vm, '');
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackbar.show(
+        context,
+        'Unable to load suppliers. Search in the supplier filter to retry.',
+        type: AppMessageType.error,
+      );
+    } finally {
+      if (mounted) setState(() => _loadingSuppliers = false);
+    }
+  }
+
+  Future<List<DropdownMenuItem<String>>> _searchSuppliers(
+    PaymentEntryListViewModel vm,
+    String query,
+  ) async {
+    final request = ++_supplierRequest;
+    final rows = await vm.searchSuppliers(query);
+    final results = [
+      for (final row in rows)
+        DropdownMenuItem<String>(
+          value: '${row['name']}',
+          child: Text(
+            '${row['supplier_name'] ?? row['name']} (${row['name']})',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+    ];
+    if (!mounted || request != _supplierRequest) return results;
+
+    DropdownMenuItem<String>? selectedItem;
+    for (final item in _supplierItems) {
+      if (item.value == vm.supplier) {
+        selectedItem = item;
+        break;
+      }
+    }
+    setState(() {
+      _supplierItems
+        ..clear()
+        ..addAll(results)
+        ..addAll(
+          selectedItem != null &&
+                  !results.any((item) => item.value == selectedItem!.value)
+              ? [selectedItem]
+              : const <DropdownMenuItem<String>>[],
+        );
+    });
+    return results;
   }
 
   Future<void> _create(PaymentEntryListViewModel vm) async {
@@ -94,79 +175,139 @@ class _PaymentEntryListScreenState extends State<PaymentEntryListScreen> {
               constraints: const BoxConstraints(
                 maxWidth: AppDimensions.detailContentMaxWidth,
               ),
-              child: RefreshIndicator(
-                onRefresh: () => vm.load(),
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
+              child: AppPaginatedList(
+                hasMore: vm.hasMore,
+                loading: vm.loading || vm.loadingMore || busy,
+                error: vm.error,
+                onLoadMore: () => vm.load(more: true),
+                child: RefreshIndicator(
+                  onRefresh: () => vm.load(),
+                  child: ListView.builder(
+                    itemCount: vm.records.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index > 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _entry(vm, vm.records[index - 1]),
+                        );
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          for (final choice in const <(String, int?)>[
-                            ('All', null),
-                            ('Draft', 0),
-                            ('Submitted', 1),
-                            ('Cancelled', 2),
-                          ])
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                label: Text(choice.$1),
-                                selected: vm.status == choice.$2,
-                                onSelected: busy
-                                    ? null
-                                    : (_) => unawaited(vm.filter(choice.$2)),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: AppTextField(
+                                  controller: _searchController,
+                                  label: 'Search payment entries',
+                                  hint: 'Entry ID, supplier name or ID',
+                                  prefixIcon: const Icon(Icons.search),
+                                  textInputAction: TextInputAction.search,
+                                  onChanged: (value) =>
+                                      _searchEntries(vm, value),
+                                  suffixIcon:
+                                      ValueListenableBuilder<TextEditingValue>(
+                                        valueListenable: _searchController,
+                                        builder: (context, value, _) =>
+                                            value.text.isEmpty
+                                            ? const SizedBox.shrink()
+                                            : IconButton(
+                                                tooltip: 'Clear search',
+                                                icon: const Icon(
+                                                  Icons.close_rounded,
+                                                ),
+                                                onPressed: () {
+                                                  _searchDebounce?.cancel();
+                                                  _searchController.clear();
+                                                  unawaited(vm.search(''));
+                                                },
+                                              ),
+                                      ),
+                                ),
                               ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (vm.loading && vm.records.isEmpty)
-                      const SkeletonShimmer(
-                        label: 'Loading payment entries...',
-                        child: SkeletonInfoRows(count: 8),
-                      )
-                    else if (vm.error != null && vm.records.isEmpty)
-                      AppErrorWidget(
-                        message: vm.error!,
-                        onRetry: () => unawaited(vm.load()),
-                      )
-                    else ...[
-                      if (vm.error != null) ...[
-                        Text(
-                          vm.error!,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
+                              const SizedBox(width: 4),
+                              Expanded(
+                                flex: 2,
+                                child: AppDropdown<String>(
+                                  label: 'Supplier',
+                                  value: vm.supplier,
+                                  items: _supplierItems,
+                                  enabled: !busy && !_loadingSuppliers,
+                                  hint: 'All',
+                                  onSearch: (query) =>
+                                      _searchSuppliers(vm, query),
+                                  onChanged: (value) =>
+                                      unawaited(vm.filterSupplier(value)),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        TextButton(
-                          onPressed: busy ? null : () => unawaited(vm.load()),
-                          child: const Text('Refresh'),
-                        ),
-                      ],
-                      if (vm.loading) const LinearProgressIndicator(),
-                      if (vm.records.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Text('No payment entries found.'),
-                        ),
-                      for (final record in vm.records) ...[
-                        _entry(vm, record),
-                        const SizedBox(height: 12),
-                      ],
-                      if (vm.hasMore)
-                        AppButton(
-                          label: 'Load more',
-                          isLoading: vm.loadingMore,
-                          onPressed: busy || vm.loading
-                              ? null
-                              : () => vm.load(more: true),
-                        ),
-                    ],
-                  ],
+                          const SizedBox(height: 2),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                for (final choice in const <(String, int?)>[
+                                  ('All', null),
+                                  ('Draft', 0),
+                                  ('Submitted', 1),
+                                  ('Cancelled', 2),
+                                ])
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: ChoiceChip(
+                                      label: Text(choice.$1),
+                                      selected: vm.status == choice.$2,
+                                      onSelected: busy
+                                          ? null
+                                          : (_) =>
+                                                unawaited(vm.filter(choice.$2)),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (vm.loading && vm.records.isEmpty)
+                            const SkeletonShimmer(
+                              label: 'Loading payment entries...',
+                              child: SkeletonInfoRows(count: 8),
+                            )
+                          else if (vm.error != null && vm.records.isEmpty)
+                            AppErrorWidget(
+                              message: vm.error!,
+                              onRetry: () => unawaited(vm.load()),
+                            )
+                          else ...[
+                            if (vm.error != null) ...[
+                              Text(
+                                vm.error!,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: busy
+                                    ? null
+                                    : () => unawaited(vm.load()),
+                                child: const Text('Refresh'),
+                              ),
+                            ],
+                            if (vm.loading) const LinearProgressIndicator(),
+                            if (vm.records.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Text('No payment entries found.'),
+                              ),
+                          ],
+                        ],
+                      );
+                    },
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                  ),
                 ),
               ),
             ),

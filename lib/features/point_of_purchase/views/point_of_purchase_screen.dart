@@ -11,6 +11,7 @@ import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
 import '../../../core/diagnostics/app_diagnostics.dart';
 import '../../../shared/widgets/app_app_bar.dart';
+import '../../../shared/widgets/app_paginated_list.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_dropdown.dart';
 import '../../../shared/widgets/app_snackbar.dart';
@@ -149,162 +150,169 @@ class _PointOfPurchaseScreenState extends State<PointOfPurchaseScreen> {
               ].whereType<String>().join(' ').toLowerCase().contains(query),
         )
         .toList(growable: false);
-    return RefreshIndicator(
-      onRefresh: vm.loadPointOfPurchases,
-      child: ListView.separated(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(AppDimensions.pageGutter),
-        itemCount: loading || records.isEmpty ? 2 : records.length + 1,
-        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.cardGap),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AppSearchField(
-                  controller: _search,
-                  hint: 'Search purchases',
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: AppSpacing.cardGap),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final filters = [
-                      _filterDropdown(
-                        label: 'Supplier name',
-                        allLabel: 'All suppliers',
-                        value: _supplier,
-                        options: suppliers,
-                        onSearch: (query) async {
-                          final rows = await vm.repository.searchSuppliers(
-                            query,
-                          );
-                          return [
-                            const DropdownMenuItem(
-                              value: '',
-                              child: Text('All suppliers'),
-                            ),
-                            for (final row in rows)
-                              DropdownMenuItem<String>(
-                                value: '${row['value']}',
-                                child: Text(
-                                  _supplierLabels['${row['value']}'] =
-                                      '${row['title']} (${row['value']})',
-                                ),
+    return AppPaginatedList(
+      hasMore: vm.hasMore,
+      loading: vm.isLoading || vm.loadingMore,
+      error: vm.loadMoreError,
+      onLoadMore: vm.loadMore,
+      child: RefreshIndicator(
+        onRefresh: vm.loadPointOfPurchases,
+        child: ListView.separated(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(AppDimensions.pageGutter),
+          itemCount: loading || records.isEmpty ? 2 : records.length + 1,
+          separatorBuilder: (_, _) =>
+              const SizedBox(height: AppSpacing.cardGap),
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AppSearchField(
+                    controller: _search,
+                    hint: 'Search purchases',
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: AppSpacing.cardGap),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final filters = [
+                        _filterDropdown(
+                          label: 'Supplier name',
+                          allLabel: 'All suppliers',
+                          value: _supplier,
+                          options: suppliers,
+                          onSearch: (query) async {
+                            final rows = await vm.repository.searchSuppliers(
+                              query,
+                            );
+                            return [
+                              const DropdownMenuItem(
+                                value: '',
+                                child: Text('All suppliers'),
                               ),
-                          ];
-                        },
-                        onChanged: (value) {
-                          String? id = value;
-                          for (final record in vm.records) {
-                            if (_supplierName(
-                                  record.supplierName,
-                                  record.supplierId,
-                                ) ==
-                                value) {
-                              id = record.supplierId;
-                              break;
+                              for (final row in rows)
+                                DropdownMenuItem<String>(
+                                  value: '${row['value']}',
+                                  child: Text(
+                                    _supplierLabels['${row['value']}'] =
+                                        '${row['title']} (${row['value']})',
+                                  ),
+                                ),
+                            ];
+                          },
+                          onChanged: (value) {
+                            String? id = value;
+                            for (final record in vm.records) {
+                              if (_supplierName(
+                                    record.supplierName,
+                                    record.supplierId,
+                                  ) ==
+                                  value) {
+                                id = record.supplierId;
+                                break;
+                              }
                             }
-                          }
-                          setState(() => _supplier = id);
-                          unawaited(vm.filterBySupplier(id));
-                        },
-                      ),
-                      _filterDropdown(
-                        label: 'Product type',
-                        allLabel: 'All types',
-                        value: _productType,
-                        options: productTypes,
-                        onChanged: (value) =>
-                            setState(() => _productType = value),
-                      ),
-                    ];
-                    if (constraints.maxWidth < 320 ||
-                        MediaQuery.textScalerOf(context).scale(14) > 18) {
-                      return Column(
+                            setState(() => _supplier = id);
+                            unawaited(vm.filterBySupplier(id));
+                          },
+                        ),
+                        _filterDropdown(
+                          label: 'Product type',
+                          allLabel: 'All types',
+                          value: _productType,
+                          options: productTypes,
+                          onChanged: (value) =>
+                              setState(() => _productType = value),
+                        ),
+                      ];
+                      if (constraints.maxWidth < 320 ||
+                          MediaQuery.textScalerOf(context).scale(14) > 18) {
+                        return Column(
+                          children: [
+                            filters[0],
+                            const SizedBox(height: AppSpacing.cardGap),
+                            filters[1],
+                          ],
+                        );
+                      }
+                      return Row(
                         children: [
-                          filters[0],
-                          const SizedBox(height: AppSpacing.cardGap),
-                          filters[1],
+                          Expanded(child: filters[0]),
+                          const SizedBox(width: AppSpacing.cardGap),
+                          Expanded(child: filters[1]),
                         ],
                       );
-                    }
-                    return Row(
-                      children: [
-                        Expanded(child: filters[0]),
-                        const SizedBox(width: AppSpacing.cardGap),
-                        Expanded(child: filters[1]),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: AppSpacing.cardGap),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final filter in const <(String, int?)>[
-                        ('All', null),
-                        ('Draft', 0),
-                        ('Submitted', 1),
-                        ('Cancelled', 2),
-                      ])
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(filter.$1),
-                            selected: _status == filter.$2,
-                            onSelected: (_) =>
-                                setState(() => _status = filter.$2),
-                          ),
-                        ),
-                    ],
+                    },
                   ),
-                ),
-                const SizedBox(height: AppSpacing.small),
-                Text(
-                  '${records.length} recent ${records.length == 1 ? 'purchase' : 'purchases'}',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Search and filters apply to the latest 50 records.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                if (vm.errorMessage != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    vm.errorMessage!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                  const SizedBox(height: AppSpacing.cardGap),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final filter in const <(String, int?)>[
+                          ('All', null),
+                          ('Draft', 0),
+                          ('Submitted', 1),
+                          ('Cancelled', 2),
+                        ])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(filter.$1),
+                              selected: _status == filter.$2,
+                              onSelected: (_) =>
+                                  setState(() => _status = filter.$2),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.small),
+                  Text(
+                    '${records.length} ${records.length == 1 ? 'purchase' : 'purchases'}',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  // const SizedBox(height: 4),
+                  // Text(
+                  //   'Search and filters apply to the latest 50 records.',
+                  //   style: Theme.of(context).textTheme.bodySmall,
+                  // ),
+                  if (vm.errorMessage != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      vm.errorMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              );
+            }
+            if (loading) return const PurchaseListSkeleton();
+            if (records.isEmpty) {
+              return AppEmptyState(
+                icon: AppIconName.purchase,
+                title: vm.records.isEmpty
+                    ? 'No purchases found'
+                    : 'No matching purchases',
+                description: vm.records.isEmpty
+                    ? 'Your purchase records will appear here.'
+                    : 'Try another search, supplier, product type or status.',
+              );
+            }
+            final record = records[index - 1];
+            return AppPurchaseCard(
+              record: record,
+              onTap: () => context.pushNamedOnce(
+                RouteNames.pointOfPurchaseDetail,
+                pathParameters: {'documentName': record.name},
+              ),
             );
-          }
-          if (loading) return const PurchaseListSkeleton();
-          if (records.isEmpty) {
-            return AppEmptyState(
-              icon: AppIconName.purchase,
-              title: vm.records.isEmpty
-                  ? 'No purchases found'
-                  : 'No matching purchases',
-              description: vm.records.isEmpty
-                  ? 'Your purchase records will appear here.'
-                  : 'Try another search, supplier, product type or status.',
-            );
-          }
-          final record = records[index - 1];
-          return AppPurchaseCard(
-            record: record,
-            onTap: () => context.pushNamedOnce(
-              RouteNames.pointOfPurchaseDetail,
-              pathParameters: {'documentName': record.name},
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }

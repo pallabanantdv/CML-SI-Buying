@@ -4,6 +4,9 @@ import '../repositories/supplier_payment_repository.dart';
 
 class SupplierPaymentViewModel extends DiagnosticNotifier {
   SupplierPaymentViewModel(this.repository);
+  static const camlCompany = 'CAML Solomon Trading LTD';
+  static const camlCashAccount = '211003 - CASH ON HAND - COPRA/COCOA - CSTL';
+  static const camlAdvanceAccount = '212001 - ADVANCES RECEIVABLE - CSTL';
   final SupplierPaymentRepository repository;
   List<Map<String, dynamic>> companies = [],
       suppliers = [],
@@ -86,22 +89,31 @@ class SupplierPaymentViewModel extends DiagnosticNotifier {
     final bankAccounts = currencyAccounts
         .where((row) => ['Bank', 'Cash'].contains(row['account_type']))
         .toList();
-    final bank =
-        bankAccounts
-            .where((row) => row['account_type'] == modeType)
-            .firstOrNull ??
-        bankAccounts.firstOrNull;
-    final party =
-        currencyAccounts
-            .where((row) => row['account_type'] == 'Payable')
-            .firstOrNull ??
-        currencyAccounts
-            .where((row) => row['account_type'] == 'Receivable')
-            .firstOrNull;
+    final preferredCash = find(currencyAccounts, camlCashAccount);
+    final preferredAdvance = find(currencyAccounts, camlAdvanceAccount);
+    final useCamlCash = company == camlCompany && modeType == 'Cash';
+    final bank = useCamlCash
+        ? (preferredCash?['account_type'] == 'Cash' ? preferredCash : null)
+        : bankAccounts
+                  .where((row) => row['account_type'] == modeType)
+                  .firstOrNull ??
+              bankAccounts.firstOrNull;
+    final party = company == camlCompany
+        ? (['Payable', 'Receivable'].contains(preferredAdvance?['account_type'])
+              ? preferredAdvance
+              : null)
+        : currencyAccounts
+                  .where((row) => row['account_type'] == 'Payable')
+                  .firstOrNull ??
+              currencyAccounts
+                  .where((row) => row['account_type'] == 'Receivable')
+                  .firstOrNull;
     paidFrom = (supplierAdvanceTransfer ? party : bank)?['name'] as String?;
     paidTo = (supplierAdvanceTransfer ? bank : party)?['name'] as String?;
     accountError = bank == null || party == null
-        ? 'No bank/cash and supplier accounts are available in the company currency.'
+        ? company == camlCompany
+              ? 'The CAML payment defaults are unavailable. Check account permissions or select valid payment accounts below.'
+              : 'No bank/cash and supplier accounts are available in the company currency.'
         : null;
   }
 
@@ -120,8 +132,11 @@ class SupplierPaymentViewModel extends DiagnosticNotifier {
       companies = rows[0];
       suppliers = rows[1];
       modes = rows[2];
+      mode = find(modes, 'Cash')?['name'] as String?;
       if (companies.isNotEmpty) {
-        await selectCompany('${companies.first['name']}');
+        await selectCompany(
+          '${find(companies, camlCompany)?['name'] ?? companies.first['name']}',
+        );
       }
     } catch (e) {
       if (!isDisposed) error = _message(e);
@@ -260,9 +275,19 @@ class SupplierPaymentViewModel extends DiagnosticNotifier {
     notifyListeners();
     try {
       return await repository.create({
+        'doctype': 'Payment Entry',
+        'naming_series': 'CAML-PAY-.YYYY.-',
         'payment_type': paymentType,
+        'payment_order_status': 'Initiated',
         'party_type': 'Supplier',
         'party': supplier,
+        'party_name': find(suppliers, supplier)?['supplier_name'] ?? supplier,
+        'book_advance_payments_in_separate_party_account':
+            !supplierAdvanceTransfer && invoice == null ? 1 : 0,
+        'reconcile_on_advance_payment_date': 0,
+        'advance_reconciliation_takes_effect_on':
+            'Oldest Of Invoice Or Advance',
+        'is_opening': 'No',
         'custom_supplier_advance_transfer': supplierAdvanceTransfer ? 1 : 0,
         if (supplierAdvanceTransfer) ...{
           'custom_supplier': transferSupplier,
@@ -277,6 +302,8 @@ class SupplierPaymentViewModel extends DiagnosticNotifier {
         'paid_to': paidTo,
         'paid_from_account_currency': fromCurrency,
         'paid_to_account_currency': toCurrency,
+        'paid_from_account_type': find(accounts, paidFrom)?['account_type'],
+        'paid_to_account_type': find(accounts, paidTo)?['account_type'],
         'paid_amount': amount,
         'received_amount': received,
         'source_exchange_rate': sourceRate,

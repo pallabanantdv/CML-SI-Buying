@@ -33,7 +33,7 @@ class Suppliers extends SupplierRepository {
   Completer<List<SupplierModel>> pending = Completer();
   int calls = 0;
   @override
-  Future<List<SupplierModel>> getSuppliers() {
+  Future<List<SupplierModel>> getSuppliers({int offset = 0}) {
     calls++;
     return pending.future;
   }
@@ -52,7 +52,7 @@ class Purchases extends PointOfPurchaseRepository {
   final details = <String, Completer<Map<String, dynamic>>>{};
   int detailCalls = 0;
   @override
-  Future<List<PointOfPurchaseModel>> getPointOfPurchases() => list.future;
+  Future<List<PointOfPurchaseModel>> getPointOfPurchases({int offset = 0}) => list.future;
   @override
   Future<Map<String, dynamic>> getPointOfPurchase(String name) {
     detailCalls++;

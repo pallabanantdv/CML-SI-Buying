@@ -20,30 +20,42 @@ class SupplierPaymentRepository {
     return record;
   }
 
-  Future<List<Map<String, dynamic>>> entries({int offset = 0, int? status}) =>
-      api.getDocList(
-        'Payment Entry',
-        fields: [
-          'name',
-          'posting_date',
-          'company',
-          'party',
-          'party_name',
-          'payment_type',
-          'mode_of_payment',
-          'paid_amount',
-          'paid_from_account_currency',
-          'docstatus',
-        ],
-        filters: [
-          ['party_type', '=', 'Supplier'],
-          // ['payment_type', '=', 'Pay'],
-          if (status != null) ['docstatus', '=', status],
-        ],
-        orderBy: 'modified desc, name desc',
-        limitStart: offset,
-        limitPageLength: pageSize,
-      );
+  Future<List<Map<String, dynamic>>> entries({
+    int offset = 0,
+    int? status,
+    String query = '',
+    String? supplier,
+  }) => api.getDocList(
+    'Payment Entry',
+    fields: [
+      'name',
+      'posting_date',
+      'company',
+      'party',
+      'party_name',
+      'payment_type',
+      'mode_of_payment',
+      'paid_amount',
+      'paid_from_account_currency',
+      'docstatus',
+    ],
+    filters: [
+      ['party_type', '=', 'Supplier'],
+      // ['payment_type', '=', 'Pay'],
+      if (status != null) ['docstatus', '=', status],
+      if (supplier != null) ['party', '=', supplier],
+    ],
+    orFilters: query.trim().isEmpty
+        ? null
+        : [
+            ['name', 'like', '%${query.trim()}%'],
+            ['party', 'like', '%${query.trim()}%'],
+            ['party_name', 'like', '%${query.trim()}%'],
+          ],
+    orderBy: 'modified desc, name desc',
+    limitStart: offset,
+    limitPageLength: pageSize,
+  );
 
   Future<Map<String, dynamic>> submit(String name) async {
     if (api.cache?.connectivity.offline == true) {
@@ -99,21 +111,24 @@ class SupplierPaymentRepository {
     fields: ['name', 'default_currency'],
     limitPageLength: 100,
   );
-  Future<List<Map<String, dynamic>>> suppliers({String query = ''}) =>
-      api.getDocList(
-        'Supplier',
-        fields: ['name', 'supplier_name'],
-        filters: [
-          ['disabled', '=', 0],
-        ],
-        orFilters: query.trim().isEmpty
-            ? null
-            : [
-                ['name', 'like', '%${query.trim()}%'],
-                ['supplier_name', 'like', '%${query.trim()}%'],
-              ],
-        limitPageLength: 100,
-      );
+  Future<List<Map<String, dynamic>>> suppliers({
+    String query = '',
+    int limit = 100,
+  }) => api.getDocList(
+    'Supplier',
+    fields: ['name', 'supplier_name'],
+    filters: [
+      ['disabled', '=', 0],
+    ],
+    orFilters: query.trim().isEmpty
+        ? null
+        : [
+            ['name', 'like', '%${query.trim()}%'],
+            ['supplier_name', 'like', '%${query.trim()}%'],
+          ],
+    orderBy: 'supplier_name asc, name asc',
+    limitPageLength: limit,
+  );
   Future<List<Map<String, dynamic>>> modes() => api.getDocList(
     'Mode of Payment',
     fields: ['name', 'type'],

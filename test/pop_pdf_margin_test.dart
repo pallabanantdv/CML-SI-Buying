@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -18,8 +19,10 @@ class _Raster extends PdfRaster {
 
 class _Printing extends PrintingPlatform {
   int rasterCalls = 0;
+  Future<PrintingInfo>? pendingInfo;
   @override
-  Future<PrintingInfo> info() async => const PrintingInfo();
+  Future<PrintingInfo> info() async =>
+      await (pendingInfo ?? Future.value(const PrintingInfo()));
   @override
   Stream<PdfRaster> raster(
     Uint8List document,
@@ -35,6 +38,42 @@ class _Printing extends PrintingPlatform {
 }
 
 void main() {
+  testWidgets(
+    'PDF starts before native preview is ready and shares its request',
+    (tester) async {
+      final previous = PrintingPlatform.instance;
+      final info = Completer<PrintingInfo>();
+      PrintingPlatform.instance = _Printing()..pendingInfo = info.future;
+      addTearDown(() => PrintingPlatform.instance = previous);
+      final pdf = Completer<Uint8List>();
+      var requests = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: InvoiceHtmlPrintPreviewScreen(
+            htmlContent: '',
+            title: 'Purchase invoice',
+            loadPdf: () {
+              requests++;
+              return pdf.future;
+            },
+          ),
+        ),
+      );
+      expect(requests, 1);
+      final preview = tester.widget<PdfPreview>(find.byType(PdfPreview));
+      final first = preview.build(PdfPageFormat.a4);
+      final second = preview.build(PdfPageFormat.a4);
+      final source = Uint8List.fromList('%PDF-1.4 invoice'.codeUnits);
+      pdf.complete(source);
+      expect(await first, same(source));
+      expect(await second, same(source));
+      expect(requests, 1);
+      await tester.pumpWidget(const SizedBox());
+      info.complete(const PrintingInfo());
+      await tester.pump();
+    },
+  );
+
   testWidgets(
     'server PDF with existing margins passes through without rasterization',
     (tester) async {

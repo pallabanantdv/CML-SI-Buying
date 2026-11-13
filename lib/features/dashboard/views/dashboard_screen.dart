@@ -51,6 +51,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       initialDateRange: _purchaseDateRange ?? _responseDateRange(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100, 12, 31),
+      fieldStartLabelText: 'From date',
+      fieldEndLabelText: 'To date',
     );
     if (!mounted || range == null) return;
     await context.read<DashboardViewModel>().setDateRange(
@@ -72,7 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final name = context.watch<AuthViewModel>().user?.fullName?.trim();
     return Scaffold(
-      appBar: const AppAppBar(title: AppHeaderTitle(title: 'CMAL BI Buying')),
+      appBar: const AppAppBar(title: AppHeaderTitle(title: 'CAML')),
       body: SafeArea(
         top: false,
         child: Center(

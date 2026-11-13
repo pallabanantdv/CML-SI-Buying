@@ -1,6 +1,6 @@
 {
-    "name": "CMAL BI Buying",
-    "short_name": "CMAL BI Buying",
+    "name": "CAML",
+    "short_name": "CAML",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

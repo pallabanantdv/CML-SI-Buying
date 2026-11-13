@@ -44,7 +44,7 @@ class SubmitRepository extends PointOfPurchaseRepository {
   Future<Map<String, dynamic>> getPointOfPurchase(String name) async =>
       document(status);
   @override
-  Future<List<PointOfPurchaseModel>> getPointOfPurchases() async => [
+  Future<List<PointOfPurchaseModel>> getPointOfPurchases({int offset = 0}) async => [
     PointOfPurchaseModel.fromJson(document(status)),
   ];
   @override

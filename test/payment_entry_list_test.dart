@@ -14,6 +14,8 @@ import 'package:cml_si_buying/core/network/frappe_resource_api.dart';
 import 'package:cml_si_buying/features/supplier/repositories/supplier_payment_repository.dart';
 import 'package:cml_si_buying/features/supplier/viewmodels/payment_entry_list_viewmodel.dart';
 import 'package:cml_si_buying/features/supplier/views/payment_entry_list_screen.dart';
+import 'package:cml_si_buying/shared/widgets/app_dropdown.dart';
+import 'package:cml_si_buying/shared/widgets/app_text_field.dart';
 
 Map<String, dynamic> payment(int status) => {
   'name': 'ACC-PAY-1',
@@ -35,12 +37,46 @@ class ListRepository extends SupplierPaymentRepository {
         ),
       );
   final result = Completer<Map<String, dynamic>>();
+  List<Map<String, dynamic>> entriesResult = [payment(0)];
   int calls = 0;
+  int lastOffset = 0;
+  String lastQuery = '';
+  String? lastSupplier;
+  final supplierQueries = <String>[];
+  int? supplierLimit;
+  @override
+  Future<List<Map<String, dynamic>>> suppliers({
+    String query = '',
+    int limit = 100,
+  }) async {
+    supplierQueries.add(query);
+    supplierLimit = limit;
+    return query.isEmpty
+        ? List.generate(
+            limit,
+            (index) => {
+              'name': 'SUP-$index',
+              'supplier_name': 'Supplier $index',
+            },
+          )
+        : [
+            {'name': 'SUP-SEARCH', 'supplier_name': query},
+          ];
+  }
+
   @override
   Future<List<Map<String, dynamic>>> entries({
     int offset = 0,
     int? status,
-  }) async => [payment(0)];
+    String query = '',
+    String? supplier,
+  }) async {
+    lastOffset = offset;
+    lastQuery = query;
+    lastSupplier = supplier;
+    return entriesResult;
+  }
+
   @override
   Future<Map<String, dynamic>> submit(String name) {
     calls++;
@@ -70,6 +106,56 @@ ResponseBody body(dynamic value) => ResponseBody.fromString(
 );
 
 void main() {
+  testWidgets(
+    'supplier filter starts with 50, searches remotely and shares a 75/25 row',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 700);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = ListRepository();
+      final vm = PaymentEntryListViewModel(repository);
+      addTearDown(vm.dispose);
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: vm,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: const PaymentEntryListScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final dropdown = tester.widget<AppDropdown<String>>(
+        find.byType(AppDropdown<String>),
+      );
+      expect(dropdown.items.length, 50);
+      expect(repository.supplierQueries, ['']);
+      expect(repository.supplierLimit, 50);
+      final searchSize = tester.getSize(find.byType(AppTextField));
+      final supplierSize = tester.getSize(find.byType(AppDropdown<String>));
+      expect(searchSize.width, closeTo(supplierSize.width * 3, 0.01));
+      expect(
+        tester.getTopLeft(find.byType(AppTextField)).dy,
+        tester.getTopLeft(find.byType(AppDropdown<String>)).dy,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byType(AppDropdown<String>));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'Pallab');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      expect(repository.supplierQueries, ['', 'Pallab']);
+      expect(find.text('Pallab (SUP-SEARCH)'), findsOneWidget);
+      await tester.tap(find.text('Pallab (SUP-SEARCH)'));
+      await tester.pumpAndSettle();
+      expect(vm.supplier, 'SUP-SEARCH');
+      expect(repository.lastSupplier, 'SUP-SEARCH');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   test(
     'repository lists supplier payments with status and pagination',
     () async {
@@ -95,6 +181,33 @@ void main() {
       expect(captured.queryParameters['limit_start'], 50);
     },
   );
+  test('repository combines supplier and text search filters', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://erp.example'));
+    addTearDown(dio.close);
+    late RequestOptions captured;
+    dio.httpClientAdapter = Adapter((request) {
+      captured = request;
+      return body({
+        'data': [payment(1)],
+      });
+    });
+    final repository = SupplierPaymentRepository(
+      FrappeResourceApi(ApiClient(DioClient(dio: dio))),
+    );
+
+    await repository.entries(status: 1, query: 'Acme', supplier: 'SUP-1');
+
+    expect(jsonDecode(captured.queryParameters['filters'] as String), [
+      ['party_type', '=', 'Supplier'],
+      ['docstatus', '=', 1],
+      ['party', '=', 'SUP-1'],
+    ]);
+    expect(jsonDecode(captured.queryParameters['or_filters'] as String), [
+      ['name', 'like', '%Acme%'],
+      ['party', 'like', '%Acme%'],
+      ['party_name', 'like', '%Acme%'],
+    ]);
+  });
   test('submission sends fresh document through submit lifecycle and rejects non-drafts', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://erp.example'));
     addTearDown(dio.close);
@@ -167,6 +280,28 @@ void main() {
     expect(await pending, isTrue);
     expect(vm.records, isEmpty);
   });
+  test('text and supplier filters reset pagination and combine', () async {
+    final repository = ListRepository()
+      ..entriesResult = List.generate(
+        SupplierPaymentRepository.pageSize,
+        (index) => {...payment(0), 'name': 'PAY-$index'},
+      );
+    final vm = PaymentEntryListViewModel(repository);
+    addTearDown(vm.dispose);
+
+    await vm.load();
+    await vm.load(more: true);
+    expect(repository.lastOffset, SupplierPaymentRepository.pageSize);
+
+    await vm.search('  Acme  ');
+    expect(repository.lastOffset, 0);
+    expect(repository.lastQuery, 'Acme');
+
+    await vm.filterSupplier('SUP-1');
+    expect(repository.lastOffset, 0);
+    expect(repository.lastQuery, 'Acme');
+    expect(repository.lastSupplier, 'SUP-1');
+  });
   testWidgets(
     'draft Submit button becomes Submitted after server confirmation',
     (tester) async {
@@ -182,6 +317,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.byType(AppTextField), findsOneWidget);
+      expect(find.byType(AppDropdown<String>), findsOneWidget);
       await tester.tap(find.text('Submit'));
       await tester.pump();
       expect(vm.records.single['docstatus'], 0);

@@ -74,7 +74,7 @@ class PurchaseData extends PointOfPurchaseRepository {
   }
 
   @override
-  Future<List<PointOfPurchaseModel>> getPointOfPurchases() async {
+  Future<List<PointOfPurchaseModel>> getPointOfPurchases({int offset = 0}) async {
     calls++;
     if (records != null) return records!;
     return List.generate(
@@ -173,7 +173,7 @@ class SupplierData extends SupplierRepository {
 
   SupplierData() : super(api());
   @override
-  Future<List<SupplierModel>> getSuppliers() async => [
+  Future<List<SupplierModel>> getSuppliers({int offset = 0}) async => [
     const SupplierModel(
       id: 'SUP-0001',
       name: 'Solomon Islands Agricultural Producers Cooperative',

@@ -323,26 +323,52 @@ class _CreatePaymentEntryScreenState extends State<CreatePaymentEntryScreen> {
                             ],
                           ),
                         ),
-                        // const SizedBox(height: 16),
-                        // AppCard(
-                        //   title: 'Accounts and amounts',
-                        //   child: Column(
-                        //     crossAxisAlignment: CrossAxisAlignment.stretch,
-                        //     children: [
-                        //       if (vm.loadingAccounts)
-                        //         const LinearProgressIndicator(),
-                        //       if (vm.accountError != null) ...[
-                        //         Text(vm.accountError!),
-                        //         TextButton(
-                        //           onPressed: () =>
-                        //               unawaited(vm.selectCompany(vm.company)),
-                        //           child: const Text('Retry accounts'),
-                        //         ),
-                        //       ],
-
-                        //     ],
-                        //   ),
-                        // ),
+                        const SizedBox(height: 16),
+                        AppCard(
+                          title: 'Payment accounts',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _select('Company', vm.company, vm.companies, (
+                                value,
+                              ) {
+                                _allocated.clear();
+                                unawaited(vm.selectCompany(value));
+                              }),
+                              if (vm.loadingAccounts)
+                                const LinearProgressIndicator(),
+                              if (vm.accountError != null) ...[
+                                Text(vm.accountError!),
+                                TextButton(
+                                  onPressed: vm.saving || vm.loadingAccounts
+                                      ? null
+                                      : () => unawaited(
+                                          vm.selectCompany(vm.company),
+                                        ),
+                                  child: const Text('Retry accounts'),
+                                ),
+                              ],
+                              _select(
+                                'Paid From',
+                                vm.paidFrom,
+                                vm.sourceAccounts,
+                                (value) {
+                                  setState(() => vm.paidFrom = value);
+                                },
+                              ),
+                              _select(
+                                'Paid To',
+                                vm.paidTo,
+                                vm.destinationAccounts,
+                                (value) {
+                                  vm.paidTo = value;
+                                  _allocated.clear();
+                                  unawaited(vm.loadInvoices());
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
 
                         // const SizedBox(height: 16),
                         // if (!vm.supplierAdvanceTransfer)

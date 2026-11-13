@@ -128,7 +128,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: const AppAppBar(title: AppHeaderTitle(title: 'CMAL BI Buying')),
+      appBar: const AppAppBar(title: AppHeaderTitle(title: 'CAML')),
       backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
         child: LayoutBuilder(
@@ -198,7 +198,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       const SizedBox(height: AppSpacing.medium),
                       Semantics(
-                        label: 'CMAL BI Buying',
+                        label: 'CAML',
                         child: ExcludeSemantics(
                           child: Wrap(
                             alignment: WrapAlignment.center,

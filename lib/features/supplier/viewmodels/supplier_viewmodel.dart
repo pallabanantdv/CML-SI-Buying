@@ -14,6 +14,44 @@ class SupplierViewModel extends DiagnosticNotifier {
   }
 
   final SupplierRepository repository;
+  String? advanceSupplierId;
+  double? availableAdvance;
+  String? advanceError;
+  bool loadingAdvance = false;
+  int _advanceRequest = 0;
+
+  Future<void> loadSupplierAdvance(String supplierId) async {
+    if (isDisposed) return;
+    final request = ++_advanceRequest;
+    advanceSupplierId = supplierId;
+    availableAdvance = null;
+    advanceError = null;
+    loadingAdvance = true;
+    notifyListeners();
+    try {
+      final advances = await CacheManager.force(
+        () => repository.getSupplierAdvances(supplierId),
+      );
+      if (isDisposed || request != _advanceRequest) return;
+      availableAdvance =
+          advances.fold<int>(
+            0,
+            (total, advance) => total + advance.unallocatedMinor,
+          ) /
+          100;
+    } catch (error) {
+      if (isDisposed || request != _advanceRequest) return;
+      advanceError = error is AppException
+          ? error.message
+          : 'Unable to load supplier advances. Please retry.';
+    } finally {
+      if (!isDisposed && request == _advanceRequest) {
+        loadingAdvance = false;
+        notifyListeners();
+      }
+    }
+  }
+
   void _cacheChanged() => notifyListeners();
   bool get hasSavedData =>
       repository.cache?.hasSavedData('/api/resource/Supplier') ?? false;
@@ -26,6 +64,12 @@ class SupplierViewModel extends DiagnosticNotifier {
   List<SupplierModel> _suppliers = const [];
   bool _isLoading = false;
   bool _hasLoaded = false;
+  bool loadingMore = false;
+  bool hasMore = false;
+  String? loadMoreError;
+  int _listOffset = 0;
+  int _listRequest = 0;
+  Future<void> loadMore() => loadSuppliers(more: true);
   bool _isSaving = false;
   String? _errorMessage;
   String _searchQuery = '';
@@ -151,6 +195,16 @@ class SupplierViewModel extends DiagnosticNotifier {
 
   int _sessionId = 0;
   void resetSession() {
+    ++_advanceRequest;
+    advanceSupplierId = null;
+    availableAdvance = null;
+    advanceError = null;
+    loadingAdvance = false;
+    ++_listRequest;
+    loadingMore = false;
+    hasMore = false;
+    loadMoreError = null;
+    _listOffset = 0;
     ++_sessionId;
     ++_detailRequestId;
     _isLoadingPrint = false;
@@ -182,19 +236,30 @@ class SupplierViewModel extends DiagnosticNotifier {
   bool get isRefreshing =>
       (_isLoading && _hasLoaded) ||
       (repository.cache?.isRefreshing('/api/resource/Supplier') ?? false);
-  Future<void> loadSuppliers({bool force = true}) async {
-    if (isDisposed || _isLoading) return;
+  Future<void> loadSuppliers({bool force = true, bool more = false}) async {
+    if (isDisposed || _isLoading || (more && (loadingMore || !hasMore))) return;
+    final request = ++_listRequest;
     final sessionId = _sessionId;
     AppDiagnostics.write('[$runtimeType] list load started');
-    _isLoading = true;
+    _isLoading = !more;
+    loadingMore = more;
+    loadMoreError = null;
     _errorMessage = null;
     notifyListeners();
     try {
-      final result = await (force
-          ? CacheManager.force(() => repository.getSuppliers())
-          : repository.getSuppliers());
-      if (isDisposed || sessionId != _sessionId) return;
-      _suppliers = result;
+      final offset = more ? _listOffset : 0;
+      Future<List<SupplierModel>> fetch() =>
+          repository.getSuppliers(offset: offset);
+      final result = await (force ? CacheManager.force(fetch) : fetch());
+      if (isDisposed || sessionId != _sessionId || request != _listRequest) {
+        return;
+      }
+      final ids = _suppliers.map((supplier) => supplier.id).toSet();
+      _suppliers = more
+          ? [..._suppliers, ...result.where((supplier) => ids.add(supplier.id))]
+          : result;
+      _listOffset = offset + result.length;
+      hasMore = result.length == SupplierRepository.pageSize;
       _hasLoaded = true;
       if (AppDiagnostics.enabled) {
         AppDiagnostics.write(
@@ -202,14 +267,27 @@ class SupplierViewModel extends DiagnosticNotifier {
         );
       }
     } on AppException catch (error) {
-      if (isDisposed || sessionId != _sessionId) return;
-      _errorMessage = error.message;
+      if (isDisposed || sessionId != _sessionId || request != _listRequest) {
+        return;
+      }
+      if (more) {
+        loadMoreError = error.message;
+      } else {
+        _errorMessage = error.message;
+      }
     } catch (_) {
-      if (isDisposed || sessionId != _sessionId) return;
-      _errorMessage = 'Unable to load suppliers.';
+      if (isDisposed || sessionId != _sessionId || request != _listRequest) {
+        return;
+      }
+      if (more) {
+        loadMoreError = 'Unable to load more suppliers. Please retry.';
+      } else {
+        _errorMessage = 'Unable to load suppliers.';
+      }
     } finally {
-      if (!isDisposed && sessionId == _sessionId) {
+      if (!isDisposed && sessionId == _sessionId && request == _listRequest) {
         _isLoading = false;
+        loadingMore = false;
         notifyListeners();
       }
     }

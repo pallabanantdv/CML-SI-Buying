@@ -33,7 +33,10 @@ class Payments extends SupplierPaymentRepository {
     {'name': 'CAML', 'default_currency': 'SBD'},
   ];
   @override
-  Future<List<Map<String, dynamic>>> suppliers({String query = ''}) async => [
+  Future<List<Map<String, dynamic>>> suppliers({
+    String query = '',
+    int limit = 100,
+  }) async => [
     {'name': 'SUP-1', 'supplier_name': 'Supplier A'},
     {'name': 'SUP-2', 'supplier_name': 'Supplier B'},
   ];
@@ -117,7 +120,7 @@ class PaymentAdapter implements HttpClientAdapter {
 class Directory extends SupplierRepository {
   Directory() : super(paymentApi());
   @override
-  Future<List<SupplierModel>> getSuppliers() async => [];
+  Future<List<SupplierModel>> getSuppliers({int offset = 0}) async => [];
 }
 
 void main() {
@@ -368,7 +371,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(repository.payload, isNull);
     expect(vm.company, 'CAML');
-    expect(find.text('Company *'), findsNothing);
+    expect(find.text('Company *'), findsOneWidget);
     expect(find.text('Select party.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     vm.dispose();

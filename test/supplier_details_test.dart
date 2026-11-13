@@ -40,7 +40,7 @@ class Suppliers extends SupplierRepository {
   Future<Uint8List> getSupplierCard(String supplierId) async =>
       throw const AppException('Card format unavailable');
   @override
-  Future<List<SupplierModel>> getSuppliers() async => const [
+  Future<List<SupplierModel>> getSuppliers({int offset = 0}) async => const [
     SupplierModel(id: 'SUP/A 1', name: 'North Supplier'),
   ];
   @override

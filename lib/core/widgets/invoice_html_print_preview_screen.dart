@@ -266,6 +266,12 @@ class _InvoiceHtmlPrintPreviewScreenState
   Future<void> _initialize() async {
     final generation = ++_generation;
     if (_usePdf) {
+      // Start fetching/building while the native preview initializes instead
+      // of waiting for its platform checks and raster debounce to finish.
+      // PdfPreview and export share this same request, including its errors.
+      unawaited(
+        _loadPdf().then<void>((_) {}, onError: (Object _, StackTrace _) {}),
+      );
       setState(() => _loading = false);
       return;
     }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
@@ -11,14 +12,47 @@ class PopReceiptPdf {
   static const paperWidth = 58 * PdfPageFormat.mm;
   static const pageMargin = 3 * PdfPageFormat.mm;
 
+  static Future<Uint8List>? _logoBytes;
+
+  static Future<Uint8List> _loadLogo() async {
+    final asset = await rootBundle.load('assets/images/CAML Logo.png');
+    // The logo occupies only 55 points on paper. Decode it once at 300 dpi
+    // instead of decoding and embedding the full source for every receipt.
+    final codec = await ui.instantiateImageCodec(
+      asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes),
+      targetWidth: 230,
+      allowUpscaling: false,
+    );
+    try {
+      final frame = await codec.getNextFrame();
+      try {
+        final png = await frame.image.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+        if (png == null) throw StateError('Unable to decode the receipt logo.');
+        return png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes);
+      } finally {
+        frame.image.dispose();
+      }
+    } finally {
+      codec.dispose();
+    }
+  }
+
+  static Future<Uint8List> _cachedLogo() => _logoBytes ??= () async {
+    try {
+      return await _loadLogo();
+    } catch (_) {
+      _logoBytes = null;
+      rethrow;
+    }
+  }();
+
   static Future<Uint8List> build(PurchaseDetailModel purchase) async {
     // Use standard receipt fonts independently of the application's theme.
     final regular = pw.Font.helvetica();
     final bold = pw.Font.helveticaBold();
-    final logo = pw.MemoryImage(
-      (await rootBundle.load('assets/images/CAML Logo.png')).buffer
-          .asUint8List(),
-    );
+    final logo = pw.MemoryImage(await _cachedLogo());
     final pdf = pw.Document();
     bool hasValue(Object? value) =>
         value != null &&
@@ -324,7 +358,7 @@ class PopReceiptPdf {
         for (var i = 0; i < payments.length; i++) ...[
           if (payments.length > 1) heading('Payment ${i + 1}'),
           label('Payment type', payments[i].paymentType),
-          label('From account', payments[i].paymentFrom),
+          // label('From account', payments[i].paymentFrom),
           if (payments[i].paidAmount != null)
             total('Paid amount', payments[i].paidAmount),
           label('Reference no', payments[i].referenceNo),
@@ -339,7 +373,9 @@ class PopReceiptPdf {
             ),
           ),
       ],
-      total('Outstanding amount', purchase.outstandingBalance),
+      if (purchase.outstandingBalance != 0) ...[
+        total('Outstanding amount', purchase.outstandingBalance),
+      ],
       pw.SizedBox(height: 5),
       pw.Center(
         child: pw.BarcodeWidget(

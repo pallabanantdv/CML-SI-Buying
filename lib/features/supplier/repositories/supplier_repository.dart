@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import '../../../core/cache/cache_manager.dart';
 import '../../../core/network/frappe_resource_api.dart';
 import '../models/supplier_model.dart';
+import '../../point_of_purchase/models/supplier_advance.dart';
+import '../../point_of_purchase/repositories/point_of_purchase_repository.dart';
 import 'supplier_payment_repository.dart';
 
 class SupplierRepository {
@@ -28,6 +30,11 @@ class SupplierRepository {
   ];
 
   final FrappeResourceApi _resourceApi;
+  Future<List<SupplierAdvance>> getSupplierAdvances(String supplier) =>
+      PointOfPurchaseRepository(
+        _resourceApi,
+        methods: _resourceApi.methods,
+      ).getSupplierAdvances(supplier);
   CacheManager? get cache => _resourceApi.cache;
   SupplierPaymentRepository get payments =>
       SupplierPaymentRepository(_resourceApi);
@@ -71,12 +78,15 @@ class SupplierRepository {
     return names.toList()..sort();
   }
 
-  Future<List<SupplierModel>> getSuppliers() async {
+  static const pageSize = 50;
+
+  Future<List<SupplierModel>> getSuppliers({int offset = 0}) async {
     final records = await _resourceApi.getDocList(
       _doctype,
       fields: _listFields,
-      orderBy: 'modified desc',
-      limitPageLength: 100,
+      orderBy: 'modified desc, name desc',
+      limitStart: offset,
+      limitPageLength: pageSize,
     );
     return records.map(SupplierModel.fromJson).toList(growable: false);
   }

@@ -42,7 +42,15 @@ class AppDropdown<T> extends StatelessWidget {
         style: Theme.of(context).textTheme.bodyMedium,
         borderRadius: BorderRadius.circular(AppDimensions.dialogRadius),
         dropdownColor: Theme.of(context).colorScheme.surface,
-        icon: const AppSvgIcon(icon: AppIconName.expandMore, size: 18),
+        icon: value == null
+            ? const AppSvgIcon(icon: AppIconName.expandMore, size: 18)
+            : IconButton(
+                tooltip: 'Clear selection',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: enabled && onChanged != null
+                    ? () => onChanged?.call(null)
+                    : null,
+              ),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: Theme.of(context).textTheme.labelSmall,
@@ -102,10 +110,21 @@ class AppDropdown<T> extends StatelessWidget {
               hintStyle: Theme.of(context).textTheme.labelMedium,
               enabled: canSelect,
               errorText: field.errorText,
-              suffixIcon: const Padding(
-                padding: EdgeInsets.all(12),
-                child: AppSvgIcon(icon: AppIconName.expandMore, size: 18),
-              ),
+              suffixIcon: field.value == null
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: AppSvgIcon(icon: AppIconName.expandMore, size: 18),
+                    )
+                  : IconButton(
+                      tooltip: 'Clear selection',
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: canSelect
+                          ? () {
+                              field.didChange(null);
+                              onChanged?.call(null);
+                            }
+                          : null,
+                    ),
             ),
             child: selectedItem == null
                 ? const SizedBox.shrink()

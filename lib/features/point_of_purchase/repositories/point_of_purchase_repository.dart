@@ -85,27 +85,34 @@ class PointOfPurchaseRepository {
   Future<Map<String, dynamic>> getSupplierById(String id) =>
       _resourceApi.getDoc('Supplier', id);
 
-  Future<List<PointOfPurchaseModel>> getPointOfPurchases() async {
+  static const pageSize = 50;
+
+  Future<List<PointOfPurchaseModel>> getPointOfPurchases({
+    int offset = 0,
+  }) async {
     final records = await _resourceApi.getDocList(
       _doctype,
       fields: PointOfPurchaseModel.listFields,
-      orderBy: 'pop_datetime desc',
-      limitPageLength: 50,
+      orderBy: 'pop_datetime desc, name desc',
+      limitStart: offset,
+      limitPageLength: pageSize,
     );
     return records.map(PointOfPurchaseModel.fromJson).toList(growable: false);
   }
 
   Future<List<PointOfPurchaseModel>> getPurchasesForSupplier(
-    String supplier,
-  ) async {
+    String supplier, {
+    int offset = 0,
+  }) async {
     final rows = await _resourceApi.getDocList(
       _doctype,
       fields: PointOfPurchaseModel.listFields,
       filters: [
         ['supplier_name', '=', supplier],
       ],
-      orderBy: 'pop_datetime desc',
-      limitPageLength: 50,
+      orderBy: 'pop_datetime desc, name desc',
+      limitStart: offset,
+      limitPageLength: pageSize,
     );
     return rows.map(PointOfPurchaseModel.fromJson).toList();
   }

@@ -92,11 +92,23 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
   List<PointOfPurchaseModel> _records = const [];
   bool _isLoading = false;
   bool _hasLoaded = false;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  int _listOffset = 0;
+  String? _loadMoreError;
+  bool get loadingMore => _loadingMore;
+  bool get hasMore => _hasMore;
+  String? get loadMoreError => _loadMoreError;
+  Future<void> loadMore() => loadPointOfPurchases(more: true);
   int _listRequestId = 0;
   int _sessionId = 0;
 
   void resetSession() {
     _supplierFilter = null;
+    _loadingMore = false;
+    _hasMore = false;
+    _listOffset = 0;
+    _loadMoreError = null;
     ++_sessionId;
     _resetSupplierAdvances();
     _isSubmitting = false;
@@ -464,40 +476,65 @@ class PointOfPurchaseViewModel extends DiagnosticNotifier {
   String? _supplierFilter;
   Future<void> filterBySupplier(String? supplier) async {
     _supplierFilter = supplier;
+    _records = const [];
+    _hasLoaded = false;
+    _hasMore = false;
     await loadPointOfPurchases(replaceRequest: true);
   }
 
   Future<void> loadPointOfPurchases({
     bool force = true,
     bool replaceRequest = false,
+    bool more = false,
   }) async {
-    if (isDisposed || (_isLoading && !replaceRequest)) return;
+    if (isDisposed ||
+        (more && (_isLoading || _loadingMore || !_hasMore)) ||
+        (!more && _isLoading && !replaceRequest)) {
+      return;
+    }
     final listRequest = ++_listRequestId;
     AppDiagnostics.write('[$runtimeType] list load started');
-    _isLoading = true;
+    _isLoading = !more;
+    _loadingMore = more;
+    _loadMoreError = null;
     _errorMessage = null;
     notifyListeners();
     try {
       final supplier = _supplierFilter;
+      final offset = more ? _listOffset : 0;
       Future<List<PointOfPurchaseModel>> fetch() => supplier == null
-          ? repository.getPointOfPurchases()
-          : repository.getPurchasesForSupplier(supplier);
+          ? repository.getPointOfPurchases(offset: offset)
+          : repository.getPurchasesForSupplier(supplier, offset: offset);
       final result = await (force ? CacheManager.force(fetch) : fetch());
       if (isDisposed || listRequest != _listRequestId) return;
-      _records = result;
+      final names = _records.map((record) => record.name).toSet();
+      _records = more
+          ? [..._records, ...result.where((record) => names.add(record.name))]
+          : result;
+      _listOffset = offset + result.length;
+      _hasMore = result.length == PointOfPurchaseRepository.pageSize;
       _hasLoaded = true;
       if (AppDiagnostics.enabled) {
         AppDiagnostics.write('[$runtimeType] parsed count=${_records.length}');
       }
     } on AppException catch (error) {
       if (isDisposed || listRequest != _listRequestId) return;
-      _errorMessage = error.message;
+      if (more) {
+        _loadMoreError = error.message;
+      } else {
+        _errorMessage = error.message;
+      }
     } catch (_) {
       if (isDisposed || listRequest != _listRequestId) return;
-      _errorMessage = 'Unable to load point-of-purchase records.';
+      if (more) {
+        _loadMoreError = 'Unable to load more purchases. Please retry.';
+      } else {
+        _errorMessage = 'Unable to load point-of-purchase records.';
+      }
     } finally {
       if (!isDisposed && listRequest == _listRequestId) {
         _isLoading = false;
+        _loadingMore = false;
         notifyListeners();
       }
     }

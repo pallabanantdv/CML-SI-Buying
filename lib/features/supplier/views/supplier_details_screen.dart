@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../config/theme/app_dimensions.dart';
+import '../../../core/utils/number_format.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_expandable_section.dart';
 import '../../../shared/widgets/app_info_row.dart';
@@ -54,6 +55,11 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
           context.read<SupplierViewModel>().loadSupplier(widget.supplierId),
         );
         unawaited(_loadPreview());
+        unawaited(
+          context.read<SupplierViewModel>().loadSupplierAdvance(
+            widget.supplierId,
+          ),
+        );
       }
     });
   }
@@ -138,6 +144,7 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
                   await Future.wait([
                     vm.loadSupplier(widget.supplierId),
                     _loadPreview(),
+                    vm.loadSupplierAdvance(widget.supplierId),
                   ]);
                 },
                 child: ListView(
@@ -211,6 +218,31 @@ class _SupplierDetailsScreenState extends State<SupplierDetailsScreen> {
                         label: 'Loading supplier details...',
                         child: SkeletonInfoRows(count: 5),
                       ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: AppCard(
+                        title: 'Available advance (\$)',
+                        child:
+                            vm.advanceSupplierId != widget.supplierId ||
+                                vm.loadingAdvance
+                            ? const SkeletonShimmer(
+                                label: 'Loading supplier advance balance...',
+                                child: SkeletonBox(height: 20),
+                              )
+                            : vm.advanceError != null
+                            ? AppErrorWidget(
+                                message: vm.advanceError!,
+                                onRetry: () =>
+                                    vm.loadSupplierAdvance(widget.supplierId),
+                              )
+                            : Text(
+                                AppNumberFormat.amount(
+                                  vm.availableAdvance ?? 0,
+                                ),
+                              ),
+                      ),
+                    ),
+
                     if (vm.detailErrorMessage != null)
                       AppErrorWidget(
                         message: vm.detailErrorMessage!,

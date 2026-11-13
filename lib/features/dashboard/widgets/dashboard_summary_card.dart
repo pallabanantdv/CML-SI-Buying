@@ -40,7 +40,24 @@ class DashboardSummaryCard extends StatelessWidget {
                         icon: const Icon(Icons.clear),
                       ),
               ),
-              child: Text(data.periodLabel),
+              child: Wrap(
+                spacing: 24,
+                runSpacing: 8,
+                children: [
+                  _dateLabel(
+                    context,
+                    'From date',
+                    dateRange?.start ??
+                        DateTime.tryParse(data.invoiceSummary?.fromDate ?? ''),
+                  ),
+                  _dateLabel(
+                    context,
+                    'To date',
+                    dateRange?.end ??
+                        DateTime.tryParse(data.invoiceSummary?.toDate ?? ''),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -67,4 +84,19 @@ class DashboardSummaryCard extends StatelessWidget {
       ],
     ),
   );
+
+  Widget _dateLabel(BuildContext context, String label, DateTime? date) =>
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 4),
+          Text(
+            date == null
+                ? 'Select date'
+                : MaterialLocalizations.of(context).formatMediumDate(date),
+          ),
+        ],
+      );
 }

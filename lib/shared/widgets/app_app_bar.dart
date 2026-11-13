@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../config/theme/app_dimensions.dart';
+import '../../config/theme/app_spacing.dart';
 import 'app_svg_icon.dart';
 
 /// Common branded header, with route-aware back navigation and screen actions.
@@ -62,16 +64,22 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: actions
-          ?.map(
-            (action) => Padding(
-              padding: const EdgeInsets.only(right: 8),
+          ?.asMap()
+          .entries
+          .map(
+            (entry) => Padding(
+              padding: EdgeInsets.only(
+                right: entry.key == actions!.length - 1
+                    ? AppDimensions.pageGutter
+                    : AppSpacing.small,
+              ),
               child: Center(
                 child: Material(
                   color: Theme.of(context).colorScheme.primary
                       .withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
                   clipBehavior: Clip.antiAlias,
-                  child: action,
+                  child: entry.value,
                 ),
               ),
             ),

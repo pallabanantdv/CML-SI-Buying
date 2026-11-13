@@ -13,6 +13,7 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_spacing.dart';
 import '../../../shared/widgets/app_app_bar.dart';
+import '../../../shared/widgets/app_paginated_list.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_snackbar.dart';
 import '../../../shared/widgets/app_card.dart';
@@ -64,7 +65,7 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
         actions: [
           TextButton(
             onPressed: () => context.pushNamedOnce(RouteNames.paymentEntries),
-            child: const Text('Payment entries'),
+            child: const Text('Payment Entries'),
           ),
         ],
       ),
@@ -111,30 +112,36 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
     }
 
     final suppliers = viewModel.filteredSuppliers;
-    return RefreshIndicator(
-      onRefresh: viewModel.loadSuppliers,
-      child: ListView.separated(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(AppDimensions.pageGutter),
-        itemCount: loading || suppliers.isEmpty ? 2 : suppliers.length + 1,
-        separatorBuilder: (_, index) => SizedBox(height: AppSpacing.cardGap),
-        itemBuilder: (context, index) {
-          if (index == 0) return _searchAndAddSupplier(context, viewModel);
-          if (loading) return const SupplierListSkeleton();
-          if (index == 1 && suppliers.isEmpty) {
-            return AppEmptyState(
-              icon: AppIconName.supplier,
-              title: viewModel.suppliers.isEmpty
-                  ? 'No suppliers found'
-                  : 'No matching suppliers',
-              description: viewModel.suppliers.isEmpty
-                  ? 'Supplier records will appear here when they are available.'
-                  : 'Try another name, supplier ID, or location.',
-            );
-          }
-          return _SupplierCard(supplier: suppliers[index - 1]);
-        },
+    return AppPaginatedList(
+      hasMore: viewModel.hasMore,
+      loading: viewModel.isLoading || viewModel.loadingMore,
+      error: viewModel.loadMoreError,
+      onLoadMore: viewModel.loadMore,
+      child: RefreshIndicator(
+        onRefresh: viewModel.loadSuppliers,
+        child: ListView.separated(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(AppDimensions.pageGutter),
+          itemCount: loading || suppliers.isEmpty ? 2 : suppliers.length + 1,
+          separatorBuilder: (_, index) => SizedBox(height: AppSpacing.cardGap),
+          itemBuilder: (context, index) {
+            if (index == 0) return _searchAndAddSupplier(context, viewModel);
+            if (loading) return const SupplierListSkeleton();
+            if (index == 1 && suppliers.isEmpty) {
+              return AppEmptyState(
+                icon: AppIconName.supplier,
+                title: viewModel.suppliers.isEmpty
+                    ? 'No suppliers found'
+                    : 'No matching suppliers',
+                description: viewModel.suppliers.isEmpty
+                    ? 'Supplier records will appear here when they are available.'
+                    : 'Try another name, supplier ID, or location.',
+              );
+            }
+            return _SupplierCard(supplier: suppliers[index - 1]);
+          },
+        ),
       ),
     );
   }
@@ -162,11 +169,11 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
                 '${viewModel.filteredSuppliers.length} suppliers',
                 style: Theme.of(context).textTheme.titleSmall,
               ),
-              const SizedBox(height: 2),
-              Text(
-                'Latest 100 records',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              // const SizedBox(height: 2),
+              // Text(
+              //   'Latest 100 records',
+              //   style: Theme.of(context).textTheme.bodySmall,
+              // ),
             ],
           );
           final action = AppButton(
